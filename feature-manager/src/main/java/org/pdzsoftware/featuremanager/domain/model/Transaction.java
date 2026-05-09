@@ -8,5 +8,6 @@ public abstract class Transaction {
     protected String id;
     protected BigDecimal amount;
     protected Locale.IsoCountryCode countryCode;
+    protected String ipAddress;
     protected LocalDateTime creationDateTime;
 }
