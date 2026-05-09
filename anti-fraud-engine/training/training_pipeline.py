@@ -1,5 +1,5 @@
 import argparse
-import json
+import joblib
 import os
 import numpy as np
 import xgboost as xgb
@@ -12,19 +12,19 @@ def _find_threshold_for_fbeta(y_true, y_proba: np.ndarray, beta: float) -> float
     """Return the threshold that maximizes the F-beta score."""
     precisions, recalls, thresholds = precision_recall_curve(y_true, y_proba)
     best_threshold = 0.5
-    best_fbeta = 0.0
+    best_fbeta_score = 0.0
     for precision, recall, threshold in zip(precisions, recalls, thresholds):
         if precision + recall > 0:
-            fbeta = (1 + beta**2) * precision * recall / (beta**2 * precision + recall)
-            if fbeta > best_fbeta:
-                best_fbeta = fbeta
+            fbeta_score = (1 + beta**2) * precision * recall / (beta**2 * precision + recall)
+            if fbeta_score > best_fbeta_score:
+                best_fbeta_score = fbeta_score
                 best_threshold = threshold
     return float(best_threshold)
 
 
 def train_model(
     data_file: str,
-    model_output_dir: str,
+    model_output_directory: str,
     model_version: str,
     n_estimators: int,
     max_depth: int,
@@ -39,8 +39,8 @@ def train_model(
     X = data.drop(columns=["is_fraud"])
     y = data["is_fraud"].astype(int)
 
-    scale = y.value_counts()[0] / y.value_counts()[1]
-    print(f"Class distribution: {y.value_counts().to_dict()}, scale_pos_weight={scale:.2f}")
+    class_weight_scale = y.value_counts()[0] / y.value_counts()[1]
+    print(f"Class distribution: {y.value_counts().to_dict()}, scale_pos_weight={class_weight_scale:.2f}")
 
     X_temp, X_test, y_temp, y_test = train_test_split(X, y, test_size=0.15, random_state=42, stratify=y)
     X_train, X_cal, y_train, y_cal = train_test_split(
@@ -56,7 +56,7 @@ def train_model(
         random_state=42,
         use_label_encoder=False,
         eval_metric="aucpr",
-        scale_pos_weight=scale,
+        scale_pos_weight=class_weight_scale,
         early_stopping_rounds=early_stopping_rounds,
         device=device,
     )
@@ -66,10 +66,6 @@ def train_model(
     isotonic_regularization = IsotonicRegression(out_of_bounds="clip")
     isotonic_regularization.fit(model.predict_proba(X_cal)[:, 1], y_cal)
 
-    os.makedirs(model_output_dir, exist_ok=True)
-    model_output_path = os.path.join(model_output_dir, f"xgb_{model_version}.json")
-    model.save_model(model_output_path)
-
     y_proba = isotonic_regularization.predict(model.predict_proba(X_test)[:, 1])
 
     threshold = _find_threshold_for_fbeta(y_test, y_proba, beta)
@@ -77,34 +73,46 @@ def train_model(
     threshold_strategy = f"fbeta_{beta}"
 
     y_pred = (y_proba >= threshold).astype(int)
-    tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
-    report = classification_report(y_test, y_pred, output_dict=True)
+    true_negatives, false_positives, false_negatives, true_positives = confusion_matrix(y_test, y_pred).ravel()
+    classification_report_dict = classification_report(y_test, y_pred, output_dict=True)
 
-    pr_auc = average_precision_score(y_test, y_proba)
+    precision_recall_auc = average_precision_score(y_test, y_proba)
 
     metrics = {
         "threshold": threshold,
         "threshold_strategy": threshold_strategy,
         "beta": beta,
-        "pr_auc": pr_auc,
-        "confusion_matrix": {"tn": int(tn), "fp": int(fp), "fn": int(fn), "tp": int(tp)},
-        "accuracy": report["accuracy"],
-        "precision": report["1"]["precision"],
-        "recall": report["1"]["recall"],
-        "f1_score": report["1"]["f1-score"],
-        "support": report["1"]["support"],
+        "pr_auc": precision_recall_auc,
+        "confusion_matrix": {
+            "tn": int(true_negatives),
+            "fp": int(false_positives),
+            "fn": int(false_negatives),
+            "tp": int(true_positives),
+        },
+        "accuracy": classification_report_dict["accuracy"],
+        "precision": classification_report_dict["1"]["precision"],
+        "recall": classification_report_dict["1"]["recall"],
+        "f1_score": classification_report_dict["1"]["f1-score"],
+        "support": classification_report_dict["1"]["support"],
     }
 
-    metrics_output_path = os.path.join(model_output_dir, f"xgb_{model_version}_metrics.json")
-    with open(metrics_output_path, "w") as file:
-        json.dump(metrics, file, indent=2)
-    print(f"Metrics saved to {metrics_output_path}")
+    os.makedirs(model_output_directory, exist_ok=True)
+
+    bundle = {
+        "model": model,
+        "calibrator": isotonic_regularization,
+        "metrics": metrics,
+        "version": model_version,
+    }
+    bundle_path = os.path.join(model_output_directory, f"xgb_{model_version}.joblib")
+    joblib.dump(bundle, bundle_path)
+    print(f"Bundle saved to {bundle_path}")
 
 
 def main():
     parser = argparse.ArgumentParser(description="Train a fraud detection model.")
     parser.add_argument("data_file", type=str, help="Path to the CSV file containing the training data.")
-    parser.add_argument("model_output_dir", type=str, help="Path to save the trained model.")
+    parser.add_argument("model_output_directory", type=str, help="Path to save the trained model.")
     parser.add_argument("model_version", type=str, help="Version of the model.")
     parser.add_argument("--n-estimators", type=int, default=5_000,
                         help="Maximum number of boosting rounds (default: 5000).")
@@ -122,7 +130,7 @@ def main():
 
     train_model(
         data_file=args.data_file,
-        model_output_dir=args.model_output_dir,
+        model_output_directory=args.model_output_directory,
         model_version=args.model_version,
         n_estimators=args.n_estimators,
         max_depth=args.max_depth,
