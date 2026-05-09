@@ -4,6 +4,9 @@ plugins {
 	id("io.spring.dependency-management") version "1.1.7"
 }
 
+val caffeineVersion = "3.1.8"
+val springDocVersion = "3.0.2"
+
 group = "org.pdzsoftware"
 version = "0.0.1-SNAPSHOT"
 
@@ -26,8 +29,10 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-security")
 	implementation("org.springframework.boot:spring-boot-starter-validation")
 	implementation("org.springframework.boot:spring-boot-starter-webmvc")
+	implementation("org.springframework.boot:spring-boot-starter-cache")
+	implementation("com.github.ben-manes.caffeine:caffeine:$caffeineVersion")
 	implementation("org.flywaydb:flyway-database-postgresql")
-	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.2")
+	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:$springDocVersion")
 	implementation("org.springframework.cloud:spring-cloud-starter-circuitbreaker-resilience4j")
 	compileOnly("org.projectlombok:lombok")
 	developmentOnly("org.springframework.boot:spring-boot-devtools")

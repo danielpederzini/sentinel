@@ -1,13 +1,16 @@
-package org.pdzsoftware.featuremanager.application.dto;
+package org.pdzsoftware.featuremanager.dto;
+
+import lombok.Builder;
 
 import java.math.BigDecimal;
 
+@Builder
 public record FraudFeatureResult(
         String transactionId,
         BigDecimal amount,
         BigDecimal userAverageAmount,
-        int userTransactionCount5Min,
-        int userTransactionCound1Hour,
+        long userTransactionCount5Min,
+        long userTransactionCound1Hour,
         long secondsSinceLastTransaction,
         float merchantRiskScore,
         boolean isDeviceTrusted,
@@ -15,6 +18,6 @@ public record FraudFeatureResult(
         float amountToAverageRatio,
         int hourOfDay,
         float ipRiskScore,
-        int cardAgeDays
+        long cardAgeDays
 ) {
 }
