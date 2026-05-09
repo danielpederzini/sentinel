@@ -13,12 +13,14 @@ import org.pdzsoftware.featuremanager.service.MerchantService;
 import org.pdzsoftware.featuremanager.service.TransactionService;
 import org.pdzsoftware.featuremanager.service.TrustedDeviceService;
 import org.pdzsoftware.featuremanager.service.UserService;
+import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
+@Component
 @RequiredArgsConstructor
 public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureRequest, FraudFeatureResult> {
     private final UserService userService;
