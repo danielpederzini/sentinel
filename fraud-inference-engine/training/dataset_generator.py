@@ -34,7 +34,6 @@ def _generate_legitimate_row(rng: np.random.Generator) -> dict:
         "hour_of_day": int(rng.choice(24, p=_LEGIT_HOUR_WEIGHTS)),
         "ip_risk_score": round(float(rng.beta(2, 8)), 4),
         "card_age_days": int(rng.integers(180, 3650)),
-        "transaction_count_ratio": round(count_last_5_minutes / max(1, count_last_hour), 4),
         "is_fraud": False,
     }
 
@@ -62,7 +61,6 @@ def _generate_fraud_row(rng: np.random.Generator, stealth_rate: float = 0.20) ->
             "hour_of_day": int(rng.choice(24, p=_LEGIT_HOUR_WEIGHTS)),
             "ip_risk_score": round(float(rng.beta(2, 8)), 4),
             "card_age_days": int(rng.integers(180, 3650)),
-            "transaction_count_ratio": round(count_last_5_minutes / max(1, count_last_hour), 4),
             "is_fraud": True,
         }
 
@@ -102,7 +100,6 @@ def _generate_fraud_row(rng: np.random.Generator, stealth_rate: float = 0.20) ->
         "hour_of_day": hour_of_day,
         "ip_risk_score": ip_risk_score,
         "card_age_days": card_age_days,
-        "transaction_count_ratio": round(count_last_5_minutes / max(1, count_last_hour), 4),
         "is_fraud": True,
     }
 

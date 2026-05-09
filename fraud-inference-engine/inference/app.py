@@ -65,7 +65,6 @@ def score(request: FraudPredictionRequest) -> FraudPredictionResponse:
         request.hour_of_day,
         request.ip_risk_score,
         request.card_age_days,
-        request.transaction_count_ratio,
     ]])
 
     raw_probability: float = float(_state["model"].predict_proba(feature_vector)[0, 1])
