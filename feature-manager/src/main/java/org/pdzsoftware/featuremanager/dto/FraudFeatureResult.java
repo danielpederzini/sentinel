@@ -10,7 +10,7 @@ public record FraudFeatureResult(
         BigDecimal amount,
         BigDecimal userAverageAmount,
         long userTransactionCount5Min,
-        long userTransactionCound1Hour,
+        long userTransactionCount1Hour,
         long secondsSinceLastTransaction,
         float merchantRiskScore,
         boolean isDeviceTrusted,

@@ -18,8 +18,6 @@ import org.pdzsoftware.featuremanager.service.TrustedDeviceService;
 import org.pdzsoftware.featuremanager.service.UserService;
 import org.springframework.stereotype.Component;
 
-import java.time.ZoneOffset;
-
 @Component
 @RequiredArgsConstructor
 public class PersistTransactionUseCase implements UseCase<TransactionPersistenceRequest, TransactionPersistenceResult> {
@@ -37,7 +35,7 @@ public class PersistTransactionUseCase implements UseCase<TransactionPersistence
         TransactionEntity transactionEntity = TransactionMapper.toEntity(input);
         TransactionEntity persistedTransaction = transactionService.save(transactionEntity);
 
-        recordTransactionInCache(input);
+        featureCacheService.recordUserTransaction(input.userId(), input.transactionId());
 
         return TransactionMapper.toResult(persistedTransaction);
     }
@@ -59,10 +57,5 @@ public class PersistTransactionUseCase implements UseCase<TransactionPersistence
         if (hasDeviceId && !trustedDeviceService.existsById(input.deviceId())) {
             throw new DeviceNotFoundException(String.format("Trusted device with ID %s not found", input.deviceId()));
         }
-    }
-
-    private void recordTransactionInCache(TransactionPersistenceRequest input) {
-        long transactionTimestamp = input.creationDateTime().toInstant(ZoneOffset.UTC).toEpochMilli();
-        featureCacheService.recordUserTransaction(input.userId(), input.transactionId(), transactionTimestamp);
     }
 }
