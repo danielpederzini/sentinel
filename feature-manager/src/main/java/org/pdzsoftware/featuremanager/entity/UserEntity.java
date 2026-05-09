@@ -14,11 +14,11 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.pdzsoftware.featuremanager.enums.CountryCode;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Locale;
 
 @Entity
 @Getter
@@ -39,7 +39,7 @@ public class UserEntity {
 
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
-    private Locale.IsoCountryCode homeCountryCode;
+    private CountryCode homeCountryCode;
 
     @Column(nullable = false)
     private LocalDateTime creationDateTime;

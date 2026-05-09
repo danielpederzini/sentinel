@@ -9,7 +9,7 @@ import org.pdzsoftware.featuremanager.enums.CountryCode;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-public record FraudFeatureRequest(
+public record TransactionPersistenceRequest(
         String transactionId,
         @NotBlank String userId,
         @NotBlank String cardId,
