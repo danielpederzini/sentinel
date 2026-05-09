@@ -20,7 +20,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 
 @Component
 @RequiredArgsConstructor
@@ -51,18 +50,19 @@ public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureReques
         int hourOfDay = input.creationDateTime().getHour();
         long cardAgeDays = Duration.between(cardEntity.getCreationDateTime(), LocalDateTime.now()).toDays();
 
-        long transactionCount5Min = featureCacheService.getUserTransactionCount5Min(input.userId());
-        long transactionCount1Hour = featureCacheService.getUserTransactionCount1Hour(input.userId());
         long secondsSinceLastTransaction = featureCacheService.getSecondsSinceLastTransaction(input.userId());
 
-        recordTransactionInCache(input);
+        featureCacheService.recordUserTransaction(input.userId(), input.transactionId());
+
+        long transactionCount5Min = featureCacheService.getUserTransactionCount5Min(input.userId());
+        long transactionCount1Hour = featureCacheService.getUserTransactionCount1Hour(input.userId());
 
         return FraudFeatureResult.builder()
                 .transactionId(input.transactionId())
                 .amount(input.amount())
                 .userAverageAmount(averageAmount)
                 .userTransactionCount5Min(transactionCount5Min)
-                .userTransactionCound1Hour(transactionCount1Hour)
+                .userTransactionCount1Hour(transactionCount1Hour)
                 .secondsSinceLastTransaction(secondsSinceLastTransaction)
                 .merchantRiskScore(merchantEntity.getRiskScore())
                 .isDeviceTrusted(isDeviceTrusted)
@@ -71,11 +71,5 @@ public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureReques
                 .hourOfDay(hourOfDay)
                 .cardAgeDays(cardAgeDays)
                 .build();
-    }
-
-    private void recordTransactionInCache(FraudFeatureRequest input) {
-        LocalDateTime transactionDateTime = input.creationDateTime();
-        long transactionTimestamp = transactionDateTime.toInstant(ZoneOffset.UTC).toEpochMilli();
-        featureCacheService.recordUserTransaction(input.userId(), input.transactionId(), transactionTimestamp);
     }
 }

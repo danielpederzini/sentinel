@@ -5,6 +5,8 @@ import org.pdzsoftware.featuremanager.config.RedisProperties;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.UUID;
+
 @Service
 @RequiredArgsConstructor
 public class FeatureCacheService {
@@ -17,10 +19,14 @@ public class FeatureCacheService {
     private final RedisTemplate<String, String> redisTemplate;
     private final RedisProperties redisProperties;
 
+    public void recordUserTransaction(String userId, String transactionId) {
+        recordUserTransaction(userId, transactionId, System.currentTimeMillis());
+    }
+
     public void recordUserTransaction(String userId, String transactionId, long timestamp) {
         long timestampInSeconds = normalizeToEpochSeconds(timestamp);
         String userTransactionKey = USER_TRANSACTIONS_KEY_PREFIX + userId;
-        redisTemplate.opsForZSet().add(userTransactionKey, transactionId, timestampInSeconds);
+        redisTemplate.opsForZSet().add(userTransactionKey, buildTransactionMember(transactionId), timestampInSeconds);
         redisTemplate.expire(userTransactionKey, redisProperties.getTimeToLast());
 
         String lastTransactionKey = USER_LAST_TRANSACTION_KEY_PREFIX + userId;
@@ -65,6 +71,11 @@ public class FeatureCacheService {
         long cutoffTime = now - ONE_HOUR_IN_SECONDS;
 
         redisTemplate.opsForZSet().removeRangeByScore(userTransactionKey, 0, cutoffTime);
+    }
+
+    private String buildTransactionMember(String transactionId) {
+        String baseId = (transactionId == null || transactionId.isBlank()) ? "generated" : transactionId;
+        return baseId + ":" + UUID.randomUUID();
     }
 
     private long normalizeToEpochSeconds(long timestamp) {
