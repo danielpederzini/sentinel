@@ -44,6 +44,7 @@ async def lifespan(app: FastAPI):
     _state["calibrator"] = calibrator
     _state["threshold"] = metrics["threshold"]
     _state["version"] = version
+    print(f"Loaded model version {version} with threshold {_state['threshold']:.4f}")
     yield
     _state.clear()
 
