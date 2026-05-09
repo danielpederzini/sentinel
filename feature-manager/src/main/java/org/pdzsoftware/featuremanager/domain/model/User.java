@@ -1,13 +1,20 @@
 package org.pdzsoftware.featuremanager.domain.model;
 
+import lombok.*;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Locale;
 
-public abstract class User {
-    protected String id;
-    protected String email;
-    protected LocalDate birthDate;
-    protected Locale.IsoCountryCode homeCountryCode;
-    protected LocalDateTime creationDateTime;
+@Getter
+@Setter
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
+public class User {
+    private String id;
+    private String email;
+    private LocalDate birthDate;
+    private Locale.IsoCountryCode homeCountryCode;
+    private LocalDateTime creationDateTime;
 }
