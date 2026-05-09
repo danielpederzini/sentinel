@@ -65,7 +65,7 @@ def _generate_fraud_row(rng: np.random.Generator, stealth_rate: float = 0.20) ->
         }
 
     fraud_signals = rng.choice(
-        ["high_amount", "burst", "risky_merchant", "device_mismatch", "country_mismatch", "new_card", "night_time"],
+        ["high_amount", "burst", "risky_merchant", "device_mismatch", "country_mismatch", "new_card", "night_time", "risky_ip"],
         size=rng.integers(1, 4),
         replace=False,
     )
@@ -83,7 +83,7 @@ def _generate_fraud_row(rng: np.random.Generator, stealth_rate: float = 0.20) ->
     country_mismatch = bool(rng.random() < 0.6) if "country_mismatch" in fraud_signals else bool(rng.random() < 0.05)
 
     hour_of_day = int(rng.choice(24, p=_FRAUD_HOUR_WEIGHTS)) if "night_time" in fraud_signals else int(rng.choice(24))
-    ip_risk_score = round(float(rng.uniform(0.5, 1.0)), 4) if "risky_merchant" in fraud_signals else round(float(rng.beta(3, 4)), 4)
+    ip_risk_score = round(float(rng.uniform(0.5, 1.0)), 4) if "risky_ip" in fraud_signals else round(float(rng.beta(3, 4)), 4)
     card_age_days = int(rng.integers(1, 90)) if "new_card" in fraud_signals else int(rng.integers(1, 3650))
 
     return {
