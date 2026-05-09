@@ -1,4 +1,4 @@
-package org.pdzsoftware.featuremanager.domain.enums;
+package org.pdzsoftware.featuremanager.enums;
 
 public enum DeviceType {
     CELLPHONE,

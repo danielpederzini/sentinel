@@ -1,4 +1,4 @@
-package org.pdzsoftware.featuremanager.infrastructure.persistence.entity;
+package org.pdzsoftware.featuremanager.entity;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -14,11 +14,10 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.pdzsoftware.featuremanager.enums.MerchantCategory;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Locale;
 
 @Entity
 @Getter
@@ -26,8 +25,8 @@ import java.util.Locale;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "users")
-public class UserEntity {
+@Table(name = "merchants")
+public class MerchantEntity {
     @Id
     private String id;
 
@@ -35,15 +34,15 @@ public class UserEntity {
     private String email;
 
     @Column(nullable = false)
-    private LocalDate birthDate;
+    private float riskScore;
 
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
-    private Locale.IsoCountryCode homeCountryCode;
+    private MerchantCategory category;
 
     @Column(nullable = false)
     private LocalDateTime creationDateTime;
 
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "merchant", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<TransactionEntity> transactions;
 }

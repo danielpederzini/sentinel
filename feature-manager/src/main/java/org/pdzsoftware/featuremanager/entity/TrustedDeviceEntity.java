@@ -1,4 +1,4 @@
-package org.pdzsoftware.featuremanager.infrastructure.persistence.entity;
+package org.pdzsoftware.featuremanager.entity;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -14,7 +14,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.pdzsoftware.featuremanager.domain.enums.DeviceType;
+import org.pdzsoftware.featuremanager.enums.DeviceType;
 
 import java.time.LocalDateTime;
 import java.util.List;

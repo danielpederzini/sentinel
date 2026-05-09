@@ -1,4 +1,4 @@
-package org.pdzsoftware.featuremanager.application.dto;
+package org.pdzsoftware.featuremanager.dto;
 
 import java.math.BigDecimal;
 
