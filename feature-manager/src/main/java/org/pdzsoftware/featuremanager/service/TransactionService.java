@@ -3,6 +3,9 @@ package org.pdzsoftware.featuremanager.service;
 import lombok.RequiredArgsConstructor;
 import org.pdzsoftware.featuremanager.entity.TransactionEntity;
 import org.pdzsoftware.featuremanager.repostiory.TransactionRepository;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -22,6 +25,10 @@ public class TransactionService {
         return transactionRepository.findById(id);
     }
 
+    @Caching(evict = {
+            @CacheEvict(cacheNames = "userAverageAmounts", key = "#transaction.user.id", condition = "#transaction.user != null"),
+            @CacheEvict(cacheNames = "userAverageAmounts", allEntries = true, condition = "#transaction.user == null")
+    })
     public TransactionEntity save(TransactionEntity transaction) {
         return transactionRepository.save(transaction);
     }
@@ -30,11 +37,13 @@ public class TransactionService {
         return transactionRepository.existsById(id);
     }
 
+    @CacheEvict(cacheNames = "userAverageAmounts", allEntries = true)
     public void deleteById(String id) {
         transactionRepository.deleteById(id);
     }
 
-        public BigDecimal findAverageAmountByUserId(String userId) {
+    @Cacheable(cacheNames = "userAverageAmounts", key = "#userId")
+    public BigDecimal findAverageAmountByUserId(String userId) {
         Double average = transactionRepository.findAverageAmountByUserId(userId);
         return average == null ? BigDecimal.ZERO : BigDecimal.valueOf(average);
     }

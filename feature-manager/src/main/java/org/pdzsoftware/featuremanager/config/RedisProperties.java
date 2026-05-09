@@ -4,10 +4,12 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
+
 @Data
 @Component
-@ConfigurationProperties(prefix = "feature.cache")
-public class CacheProperties {
-    private long secondsToLast;
+@ConfigurationProperties(prefix = "feature.cache.redis")
+public class RedisProperties {
+    private Duration timeToLast = Duration.ofMinutes(10);
 }
 

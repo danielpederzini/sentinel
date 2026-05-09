@@ -1,6 +1,7 @@
 package org.pdzsoftware.featuremanager.service;
 
 import lombok.RequiredArgsConstructor;
+import org.pdzsoftware.featuremanager.config.RedisProperties;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -11,15 +12,19 @@ public class FeatureCacheService {
     private static final String USER_LAST_TRANSACTION_KEY_PREFIX = "user:last-transaction:";
     private static final long FIVE_MINUTES_IN_SECONDS = 5L * 60L;
     private static final long ONE_HOUR_IN_SECONDS = 60L * 60L;
+    private static final long EPOCH_MILLIS_THRESHOLD = 10_000_000_000L;
 
     private final RedisTemplate<String, Object> redisTemplate;
+    private final RedisProperties redisProperties;
 
     public void recordUserTransaction(String userId, String transactionId, long timestamp) {
+        long timestampInSeconds = normalizeToEpochSeconds(timestamp);
         String userTransactionKey = USER_TRANSACTIONS_KEY_PREFIX + userId;
-        redisTemplate.opsForZSet().add(userTransactionKey, transactionId, timestamp);
+        redisTemplate.opsForZSet().add(userTransactionKey, transactionId, timestampInSeconds);
+        redisTemplate.expire(userTransactionKey, redisProperties.getUser().getTimeToLast());
 
         String lastTransactionKey = USER_LAST_TRANSACTION_KEY_PREFIX + userId;
-        redisTemplate.opsForValue().set(lastTransactionKey, timestamp);
+        redisTemplate.opsForValue().set(lastTransactionKey, timestampInSeconds, redisProperties.getUser().getTimeToLast());
     }
 
     public long getUserTransactionCount5Min(String userId) {
@@ -65,6 +70,10 @@ public class FeatureCacheService {
         long cutoffTime = now - ONE_HOUR_IN_SECONDS;
 
         redisTemplate.opsForZSet().removeRangeByScore(userTransactionKey, 0, cutoffTime);
+    }
+
+    private long normalizeToEpochSeconds(long timestamp) {
+        return timestamp > EPOCH_MILLIS_THRESHOLD ? timestamp / 1000 : timestamp;
     }
 
     public void clearUserCache(String userId) {

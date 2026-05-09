@@ -13,5 +13,21 @@ spring:
           min-idle: 0
   cache:
     type: caffeine
+
+feature:
+  cache:
     caffeine:
-      spec: maximumSize=1000,expireAfterWrite=10m
+      maximum-size: 1000
+      expire-after-write: 10m
+      cache-names:
+        - merchants
+        - cards
+        - users
+        - trustedDevices
+        - merchantsExists
+        - cardsExists
+        - usersExists
+        - trustedDevicesExists
+        - userAverageAmounts
+    redis:
+      time-to-last: 10m
