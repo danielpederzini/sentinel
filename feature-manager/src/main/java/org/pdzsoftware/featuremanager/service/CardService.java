@@ -17,4 +17,9 @@ public class CardService {
     public Optional<CardEntity> findById(String id) {
         return cardRepository.findById(id);
     }
+
+    @Cacheable(cacheNames = "cardsExists", key = "#a0", condition = "#a0 != null")
+    public boolean existsById(String id) {
+        return cardRepository.existsById(id);
+    }
 }
