@@ -9,6 +9,7 @@ import org.pdzsoftware.featuremanager.entity.UserEntity;
 import org.pdzsoftware.featuremanager.exception.MerchantNotFoundException;
 import org.pdzsoftware.featuremanager.exception.UserNotFoundException;
 import org.pdzsoftware.featuremanager.service.CardService;
+import org.pdzsoftware.featuremanager.service.FeatureCacheService;
 import org.pdzsoftware.featuremanager.service.MerchantService;
 import org.pdzsoftware.featuremanager.service.TransactionService;
 import org.pdzsoftware.featuremanager.service.TrustedDeviceService;
@@ -19,6 +20,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Component
 @RequiredArgsConstructor
@@ -28,6 +30,8 @@ public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureReques
     private final CardService cardService;
     private final TrustedDeviceService trustedDeviceService;
     private final TransactionService transactionService;
+
+    private final FeatureCacheService featureCacheService;
 
     @Override
     public FraudFeatureResult execute(FraudFeatureRequest input) {
@@ -47,10 +51,19 @@ public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureReques
         int hourOfDay = input.creationDateTime().getHour();
         long cardAgeDays = Duration.between(cardEntity.getCreationDateTime(), LocalDateTime.now()).toDays();
 
+        long transactionCount5Min = featureCacheService.getUserTransactionCount5Min(input.userId());
+        long transactionCount1Hour = featureCacheService.getUserTransactionCount1Hour(input.userId());
+        long secondsSinceLastTransaction = featureCacheService.getSecondsSinceLastTransaction(input.userId());
+
+        recordTransactionInCache(input);
+
         return FraudFeatureResult.builder()
                 .transactionId(input.transactionId())
                 .amount(input.amount())
                 .userAverageAmount(averageAmount)
+                .userTransactionCount5Min(transactionCount5Min)
+                .userTransactionCound1Hour(transactionCount1Hour)
+                .secondsSinceLastTransaction(secondsSinceLastTransaction)
                 .merchantRiskScore(merchantEntity.getRiskScore())
                 .isDeviceTrusted(isDeviceTrusted)
                 .hasCountryMismatch(hasCountryMismatch)
@@ -58,5 +71,11 @@ public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureReques
                 .hourOfDay(hourOfDay)
                 .cardAgeDays(cardAgeDays)
                 .build();
+    }
+
+    private void recordTransactionInCache(FraudFeatureRequest input) {
+        LocalDateTime transactionDateTime = input.creationDateTime();
+        long transactionTimestamp = transactionDateTime.toInstant(ZoneOffset.UTC).toEpochMilli();
+        featureCacheService.recordUserTransaction(input.userId(), input.transactionId(), transactionTimestamp);
     }
 }
