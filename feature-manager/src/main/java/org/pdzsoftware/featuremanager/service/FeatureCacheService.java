@@ -21,10 +21,10 @@ public class FeatureCacheService {
         long timestampInSeconds = normalizeToEpochSeconds(timestamp);
         String userTransactionKey = USER_TRANSACTIONS_KEY_PREFIX + userId;
         redisTemplate.opsForZSet().add(userTransactionKey, transactionId, timestampInSeconds);
-        redisTemplate.expire(userTransactionKey, redisProperties.getUser().getTimeToLast());
+        redisTemplate.expire(userTransactionKey, redisProperties.getTimeToLast());
 
         String lastTransactionKey = USER_LAST_TRANSACTION_KEY_PREFIX + userId;
-        redisTemplate.opsForValue().set(lastTransactionKey, timestampInSeconds, redisProperties.getUser().getTimeToLast());
+        redisTemplate.opsForValue().set(lastTransactionKey, timestampInSeconds, redisProperties.getTimeToLast());
     }
 
     public long getUserTransactionCount5Min(String userId) {
