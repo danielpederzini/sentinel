@@ -14,7 +14,7 @@ public class FeatureCacheService {
     private static final long ONE_HOUR_IN_SECONDS = 60L * 60L;
     private static final long EPOCH_MILLIS_THRESHOLD = 10_000_000_000L;
 
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final RedisTemplate<String, String> redisTemplate;
     private final RedisProperties redisProperties;
 
     public void recordUserTransaction(String userId, String transactionId, long timestamp) {
@@ -24,7 +24,7 @@ public class FeatureCacheService {
         redisTemplate.expire(userTransactionKey, redisProperties.getTimeToLast());
 
         String lastTransactionKey = USER_LAST_TRANSACTION_KEY_PREFIX + userId;
-        redisTemplate.opsForValue().set(lastTransactionKey, timestampInSeconds, redisProperties.getTimeToLast());
+        redisTemplate.opsForValue().set(lastTransactionKey, String.valueOf(timestampInSeconds), redisProperties.getTimeToLast());
     }
 
     public long getUserTransactionCount5Min(String userId) {
@@ -47,18 +47,13 @@ public class FeatureCacheService {
 
     public long getSecondsSinceLastTransaction(String userId) {
         String lastTransactionKey = USER_LAST_TRANSACTION_KEY_PREFIX + userId;
-        Object lastTimestamp = redisTemplate.opsForValue().get(lastTransactionKey);
+        String lastTimestamp = redisTemplate.opsForValue().get(lastTransactionKey);
 
         if (lastTimestamp == null) {
             return Long.MAX_VALUE;
         }
 
-        long lastTransactionTime;
-        if (lastTimestamp instanceof Long transactionTime) {
-            lastTransactionTime = transactionTime;
-        } else {
-            lastTransactionTime = Long.parseLong(lastTimestamp.toString());
-        }
+        long lastTransactionTime = Long.parseLong(lastTimestamp);
 
         long now = System.currentTimeMillis() / 1000;
         return now - lastTransactionTime;

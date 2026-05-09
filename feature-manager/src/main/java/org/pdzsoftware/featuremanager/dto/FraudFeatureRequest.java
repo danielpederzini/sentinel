@@ -4,19 +4,19 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PastOrPresent;
 import jakarta.validation.constraints.Positive;
+import org.pdzsoftware.featuremanager.enums.CountryCode;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Locale;
 
 public record FraudFeatureRequest(
         String transactionId,
         @NotBlank String userId,
         @NotBlank String cardId,
         @NotBlank String merchantId,
-        @NotBlank String deviceId,
+        String deviceId,
         @NotNull @Positive BigDecimal amount,
-        @NotNull Locale.IsoCountryCode countryCode,
+        @NotNull CountryCode countryCode,
         String ipAddress,
         @NotNull @PastOrPresent LocalDateTime creationDateTime
 ) {

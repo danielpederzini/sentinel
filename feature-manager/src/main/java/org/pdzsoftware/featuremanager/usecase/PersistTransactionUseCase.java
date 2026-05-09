@@ -1,10 +1,12 @@
 package org.pdzsoftware.featuremanager.usecase;
 
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.lang3.StringUtils;
 import org.pdzsoftware.featuremanager.dto.TransactionPersistenceRequest;
 import org.pdzsoftware.featuremanager.dto.TransactionPersistenceResult;
 import org.pdzsoftware.featuremanager.entity.TransactionEntity;
 import org.pdzsoftware.featuremanager.exception.CardNotFoundException;
+import org.pdzsoftware.featuremanager.exception.DeviceNotFoundException;
 import org.pdzsoftware.featuremanager.exception.MerchantNotFoundException;
 import org.pdzsoftware.featuremanager.exception.UserNotFoundException;
 import org.pdzsoftware.featuremanager.mapper.TransactionMapper;
@@ -14,9 +16,7 @@ import org.pdzsoftware.featuremanager.service.MerchantService;
 import org.pdzsoftware.featuremanager.service.TransactionService;
 import org.pdzsoftware.featuremanager.service.TrustedDeviceService;
 import org.pdzsoftware.featuremanager.service.UserService;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.time.ZoneOffset;
 
@@ -55,8 +55,9 @@ public class PersistTransactionUseCase implements UseCase<TransactionPersistence
             throw new MerchantNotFoundException(String.format("Merchant with ID %s not found", input.merchantId()));
         }
 
-        if (!trustedDeviceService.existsById(input.deviceId())) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, String.format("Trusted device with ID %s not found", input.deviceId()));
+        boolean hasDeviceId = !StringUtils.isBlank(input.deviceId());
+        if (hasDeviceId && !trustedDeviceService.existsById(input.deviceId())) {
+            throw new DeviceNotFoundException(String.format("Trusted device with ID %s not found", input.deviceId()));
         }
     }
 
