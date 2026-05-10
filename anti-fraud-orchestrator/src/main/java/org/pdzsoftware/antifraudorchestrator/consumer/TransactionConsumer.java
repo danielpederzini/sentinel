@@ -8,6 +8,7 @@ import org.pdzsoftware.antifraudorchestrator.client.InferenceEngineClient;
 import org.pdzsoftware.antifraudorchestrator.client.dto.FraudFeatureResult;
 import org.pdzsoftware.antifraudorchestrator.client.dto.FraudPredictionResponse;
 import org.pdzsoftware.antifraudorchestrator.dto.TransactionCreatedMessage;
+import org.pdzsoftware.antifraudorchestrator.exception.TransactionOrchestrationException;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
@@ -31,16 +32,16 @@ public class TransactionConsumer {
 			FraudFeatureResult features = featureManagerClient.calculateFraudFeatures(payload);
 			FraudPredictionResponse prediction = inferenceEngineClient.scoreTransaction(features);
 
-			log.info(
-					"Processed transactionId={} key={} riskLevel={} fraudProbability={} modelVersion={}",
+			log.info("Processed transaction {} | key: {} | riskLevel: {} | fraudProbability: {} | modelVersion: {}",
 					payload.transactionId(),
 					messageKey,
 					prediction.riskLevel(),
 					prediction.fraudProbability(),
 					prediction.modelVersion()
 			);
-		} catch (Exception exception) {
-			log.error("Failed to orchestrate transactionId={} key={}", payload.transactionId(), messageKey, exception);
+		} catch (RuntimeException exception) {
+			throw new TransactionOrchestrationException(String.format(
+					"Failed to orchestrate transaction %s with key %s", payload.transactionId(), messageKey), exception);
 		}
 	}
 }

@@ -3,15 +3,18 @@ package org.pdzsoftware.antifraudorchestrator.client;
 import org.pdzsoftware.antifraudorchestrator.client.dto.FraudFeatureRequest;
 import org.pdzsoftware.antifraudorchestrator.client.dto.FraudFeatureResult;
 import org.pdzsoftware.antifraudorchestrator.dto.TransactionCreatedMessage;
+import org.pdzsoftware.antifraudorchestrator.exception.FeatureManagerClientException;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClient;
 
 import java.util.Objects;
 
 @Component
 public class FeatureManagerClient {
+	private static final String FRAUD_FEATURES_ENDPOINT = "/api/v1/fraud-features";
 	private final RestClient restClient;
 
 	public FeatureManagerClient(@Qualifier("featureManagerRestClient") RestClient restClient) {
@@ -19,14 +22,18 @@ public class FeatureManagerClient {
 	}
 
 	public FraudFeatureResult calculateFraudFeatures(TransactionCreatedMessage message) {
-        FraudFeatureRequest request = FraudFeatureRequest.from(message);
-		FraudFeatureResult response = restClient.post()
-				.uri("/api/v1/fraud-features")
-				.contentType(MediaType.APPLICATION_JSON)
-				.body(request)
-				.retrieve()
-				.body(FraudFeatureResult.class);
+		try {
+			FraudFeatureRequest request = FraudFeatureRequest.from(message);
+			FraudFeatureResult response = restClient.post()
+					.uri(FRAUD_FEATURES_ENDPOINT)
+					.contentType(MediaType.APPLICATION_JSON)
+					.body(request)
+					.retrieve()
+					.body(FraudFeatureResult.class);
 
-		return Objects.requireNonNull(response, "Feature Manager returned an empty response body");
+			return Objects.requireNonNull(response, "Feature Manager returned an empty response body");
+		} catch (RestClientException | NullPointerException exception) {
+			throw new FeatureManagerClientException("Failed to fetch fraud features from Feature Manager", exception);
+		}
 	}
 }

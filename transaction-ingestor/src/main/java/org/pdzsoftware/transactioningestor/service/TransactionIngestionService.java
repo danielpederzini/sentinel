@@ -51,7 +51,7 @@ public class TransactionIngestionService {
         }
 
         RecordMetadata metadata = sendResult.getRecordMetadata();
-        log.info("Transaction {} published to Kafka topic {} partition {} offset {}",
+        log.info("Transaction {} published to Kafka | topic: {} | partition: {} | offset: {}",
                 transactionId, metadata.topic(), metadata.partition(), metadata.offset());
     }
 }
