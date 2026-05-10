@@ -210,10 +210,10 @@ insert into transactions (
     card_id
 )
 values
-    ('tx-001', 120.50, 'BR', '177.54.10.20', timestamp '2026-05-01 09:00:00', 'user-001', 'device-001', 'merchant-001', 'card-001'),
-    ('tx-002', 85.90, 'BR', '177.54.10.21', timestamp '2026-05-01 09:03:00', 'user-001', 'device-001', 'merchant-001', 'card-001'),
-    ('tx-003', 430.00, 'US', '34.120.10.11', timestamp '2026-05-01 10:10:00', 'user-002', 'device-002', 'merchant-002', 'card-002'),
-    ('tx-004', 39.99, 'US', '34.120.10.12', timestamp '2026-05-01 10:40:00', 'user-002', 'device-002', 'merchant-003', 'card-002'),
+    ('tx-001', 120.50, 'DE', '177.54.10.20', timestamp '2026-05-01 09:00:00', 'user-001', 'device-001', 'merchant-001', 'card-001'),
+    ('tx-002', 85.90, 'DE', '177.54.10.21', timestamp '2026-05-01 09:03:00', 'user-001', 'device-001', 'merchant-001', 'card-001'),
+    ('tx-003', 430.00, 'AR', '34.120.10.11', timestamp '2026-05-01 10:10:00', 'user-002', 'device-002', 'merchant-002', 'card-002'),
+    ('tx-004', 39.99, 'AR', '34.120.10.12', timestamp '2026-05-01 10:40:00', 'user-002', 'device-002', 'merchant-003', 'card-002'),
     ('tx-005', 210.75, 'AR', '181.23.44.10', timestamp '2026-05-01 11:15:00', 'user-003', null, 'merchant-003', 'card-003'),
     ('tx-006', 199.90, 'CL', '190.12.1.33', timestamp '2026-05-01 11:55:00', 'user-003', null, 'merchant-002', 'card-003')
 on conflict (id) do nothing;
@@ -234,12 +234,12 @@ insert into transaction_feature_vectors (
     card_age_days
 )
 values
-    ('tx-001', 120.50, 102.30, 2, 2, 180, 0.12, true,  true, 1.17,  9, 0.05, 212),
-    ('tx-002', 85.90,  102.30, 2, 2, 120, 0.12, true,  true, 0.84,  9, 0.04, 212),
-    ('tx-003', 430.00, 214.50, 1, 3, 300, 0.73, true,  true, 2.00, 10, 0.22, 138),
-    ('tx-004', 39.99,  214.50, 1, 3, 90,  0.41, true,  true, 0.19, 10, 0.08, 138),
-    ('tx-005', 210.75, 205.32, 1, 2, 240, 0.41, false, true, 1.03, 11, 0.15,  89),
-    ('tx-006', 199.90, 205.32, 1, 2, 60,  0.73, false, true, 0.97, 11, 0.19,  89)
+    ('tx-001', 120.50, 102.30, 2, 2, 180, 0.12, true,  false, 1.17,  9, 0.05, 221),
+    ('tx-002', 85.90,  102.30, 2, 2, 120, 0.12, true,  false, 0.84,  9, 0.04, 221),
+    ('tx-003', 430.00, 214.50, 1, 3, 300, 0.73, true,  false, 2.00, 10, 0.22, 146),
+    ('tx-004', 39.99,  214.50, 1, 3, 90,  0.41, true,  false, 0.19, 10, 0.08, 146),
+    ('tx-005', 210.75, 205.32, 1, 2, 240, 0.41, false, true, 1.03, 11, 0.15,  98),
+    ('tx-006', 199.90, 205.32, 1, 2, 60,  0.73, false, true, 0.97, 11, 0.19,  98)
 on conflict (transaction_id) do nothing;
 
 insert into transaction_predictions (transaction_id, fraud_probability, risk_level, model_version)
