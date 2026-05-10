@@ -1,7 +1,7 @@
 package org.pdzsoftware.transactioningestor.producer;
 
 import lombok.RequiredArgsConstructor;
-import org.pdzsoftware.transactioningestor.config.KafkaProperties;
+import org.pdzsoftware.transactioningestor.config.properties.KafkaProperties;
 import org.pdzsoftware.transactioningestor.dto.TransactionIngestionRequest;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
@@ -15,8 +15,8 @@ public class TransactionProducer {
     private final KafkaProperties kafkaProperties;
 
     public Mono<SendResult<String, TransactionIngestionRequest>> publish(TransactionIngestionRequest request) {
-        return Mono.fromFuture(
-                kafkaTemplate.send(kafkaProperties.getTransactionsCreatedTopic(), request.transactionId(), request)
-        );
+        String topic = kafkaProperties.getTransactionsCreatedTopic();
+        String key = request.transactionId();
+        return Mono.fromFuture(kafkaTemplate.send(topic, key, request));
     }
 }

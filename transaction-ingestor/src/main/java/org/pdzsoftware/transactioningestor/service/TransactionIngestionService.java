@@ -1,11 +1,12 @@
 package org.pdzsoftware.transactioningestor.service;
 
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.lang3.StringUtils;
 import org.pdzsoftware.transactioningestor.dto.TransactionIngestionRequest;
 import org.pdzsoftware.transactioningestor.dto.TransactionIngestionResponse;
+import org.pdzsoftware.transactioningestor.exception.KafkaPublishException;
 import org.pdzsoftware.transactioningestor.producer.TransactionProducer;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 import reactor.core.publisher.Mono;
 
 import java.util.UUID;
@@ -16,9 +17,9 @@ public class TransactionIngestionService {
     private final TransactionProducer transactionProducer;
 
     public Mono<TransactionIngestionResponse> ingest(TransactionIngestionRequest request) {
-        String transactionId = StringUtils.hasText(request.transactionId())
-                ? request.transactionId()
-                : UUID.randomUUID().toString();
+        boolean isTransactionIdMissing = StringUtils.isBlank(request.transactionId());
+
+        String transactionId = isTransactionIdMissing ? UUID.randomUUID().toString() : request.transactionId();
 
         TransactionIngestionRequest transactionToPublish = new TransactionIngestionRequest(
                 transactionId,
@@ -33,6 +34,7 @@ public class TransactionIngestionService {
         );
 
         return transactionProducer.publish(transactionToPublish)
+            .onErrorMap(exception -> new KafkaPublishException("Failed to publish transaction to Kafka", exception))
                 .thenReturn(new TransactionIngestionResponse(transactionId));
     }
 }

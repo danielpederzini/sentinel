@@ -2,6 +2,7 @@ package org.pdzsoftware.transactioningestor.config;
 
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.pdzsoftware.transactioningestor.config.properties.KafkaProperties;
 import org.pdzsoftware.transactioningestor.dto.TransactionIngestionRequest;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
