@@ -17,9 +17,4 @@ public class MerchantService {
     public Optional<MerchantEntity> findById(String id) {
         return merchantRepository.findById(id);
     }
-
-    @Cacheable(cacheNames = "merchantsExists", key = "#a0", condition = "#a0 != null")
-    public boolean existsById(String id) {
-        return merchantRepository.existsById(id);
-    }
 }

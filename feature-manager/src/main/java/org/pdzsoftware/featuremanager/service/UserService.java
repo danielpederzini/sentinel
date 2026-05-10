@@ -17,9 +17,4 @@ public class UserService {
     public Optional<UserEntity> findById(String id) {
         return userRepository.findById(id);
     }
-
-    @Cacheable(cacheNames = "usersExists", key = "#a0", condition = "#a0 != null")
-    public boolean existsById(String id) {
-        return userRepository.existsById(id);
-    }
 }
