@@ -3,10 +3,24 @@ import joblib
 import os
 import numpy as np
 import xgboost as xgb
+from tqdm import tqdm
 from sklearn.isotonic import IsotonicRegression
 from sklearn.metrics import average_precision_score, confusion_matrix, classification_report, precision_recall_curve
 from sklearn.model_selection import train_test_split
 from data_loader import load_data
+
+class _TqdmCallback(xgb.callback.TrainingCallback):
+    def __init__(self, n_estimators: int):
+        self._bar = tqdm(total=n_estimators, desc="Training", unit="round")
+
+    def after_iteration(self, model, epoch, evals_log):
+        self._bar.update(1)
+        return False
+
+    def after_training(self, model):
+        self._bar.close()
+        return model
+
 
 def _find_threshold_for_fbeta(y_true, y_proba: np.ndarray, beta: float) -> float:
     """Return the threshold that maximizes the F-beta score."""
@@ -59,9 +73,10 @@ def train_model(
         scale_pos_weight=class_weight_scale,
         early_stopping_rounds=early_stopping_rounds,
         device=device,
+        callbacks=[_TqdmCallback(n_estimators)],
     )
 
-    model.fit(X_train, y_train, eval_set=[(X_cal, y_cal)], verbose=True)
+    model.fit(X_train, y_train, eval_set=[(X_cal, y_cal)], verbose=False)
 
     isotonic_regularization = IsotonicRegression(out_of_bounds="clip")
     isotonic_regularization.fit(model.predict_proba(X_cal)[:, 1], y_cal)
@@ -95,6 +110,17 @@ def train_model(
         "f1_score": classification_report_dict["1"]["f1-score"],
         "support": classification_report_dict["1"]["support"],
     }
+
+    cm = metrics["confusion_matrix"]
+    print(f"\nMetrics (threshold={metrics['threshold']:.4f}, strategy={metrics['threshold_strategy']})")
+    print(f"  PR-AUC:    {metrics['pr_auc']:.4f}")
+    print(f"  Precision: {metrics['precision']:.4f}")
+    print(f"  Recall:    {metrics['recall']:.4f}")
+    print(f"  F1:        {metrics['f1_score']:.4f}")
+    print(f"  Accuracy:  {metrics['accuracy']:.4f}")
+    print(f"  Confusion: TN={cm['tn']}  FP={cm['fp']}  FN={cm['fn']}  TP={cm['tp']}")
+
+    model.set_params(callbacks=None)
 
     os.makedirs(model_output_directory, exist_ok=True)
 
