@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: transaction-ingestor
+
+app:
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    transactions-created-topic: ${KAFKA_TRANSACTIONS_CREATED_TOPIC:transactions.created}
