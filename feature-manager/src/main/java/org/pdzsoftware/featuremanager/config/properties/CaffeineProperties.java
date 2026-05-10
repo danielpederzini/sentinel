@@ -1,13 +1,15 @@
-package org.pdzsoftware.featuremanager.config;
+package org.pdzsoftware.featuremanager.config.properties;
 
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.List;
 
-@Data
+@Getter
+@Setter
 @Component
 @ConfigurationProperties(prefix = "feature.cache.caffeine")
 public class CaffeineProperties {

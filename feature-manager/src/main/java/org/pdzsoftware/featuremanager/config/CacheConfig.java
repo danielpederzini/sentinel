@@ -1,7 +1,8 @@
 package org.pdzsoftware.featuremanager.config;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
-import lombok.RequiredArgsConstructor;
+import org.pdzsoftware.featuremanager.config.properties.CaffeineProperties;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.caffeine.CaffeineCacheManager;
@@ -13,10 +14,8 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 @Configuration
 @EnableCaching
-@RequiredArgsConstructor
+@EnableConfigurationProperties(CaffeineProperties.class)
 public class CacheConfig {
-    private final CaffeineProperties caffeineProperties;
-
     @Bean
     public RedisTemplate<String, String> redisTemplate(RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, String> template = new RedisTemplate<>();
@@ -33,7 +32,7 @@ public class CacheConfig {
     }
 
     @Bean
-    public CacheManager cacheManager() {
+    public CacheManager cacheManager(CaffeineProperties caffeineProperties) {
         CaffeineCacheManager cacheManager = new CaffeineCacheManager();
         cacheManager.setCacheNames(caffeineProperties.getCacheNames());
 

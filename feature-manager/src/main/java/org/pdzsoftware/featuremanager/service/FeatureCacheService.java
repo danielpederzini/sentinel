@@ -3,7 +3,7 @@ package org.pdzsoftware.featuremanager.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.pdzsoftware.featuremanager.config.RedisProperties;
+import org.pdzsoftware.featuremanager.config.properties.RedisProperties;
 import org.pdzsoftware.featuremanager.exception.CacheReadException;
 import org.pdzsoftware.featuremanager.exception.CacheUpdateException;
 import org.springframework.data.redis.core.RedisTemplate;
