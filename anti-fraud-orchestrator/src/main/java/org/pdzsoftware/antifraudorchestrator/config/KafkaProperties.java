@@ -1,4 +1,4 @@
-package org.pdzsoftware.transactioningestor.config;
+package org.pdzsoftware.antifraudorchestrator.config;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -10,8 +10,8 @@ import org.springframework.stereotype.Component;
 @Component
 @ConfigurationProperties(prefix = "app.kafka")
 public class KafkaProperties {
-    private String bootstrapServers;
-    private String transactionsCreatedTopic;
-    private String acks;
-    private boolean enableIdempotence;
+	private String bootstrapServers;
+	private String transactionsCreatedTopic;
+	private String consumerGroupId;
+	private String autoOffsetReset = "earliest";
 }

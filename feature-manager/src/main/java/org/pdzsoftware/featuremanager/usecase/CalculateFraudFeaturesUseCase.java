@@ -44,7 +44,7 @@ public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureReques
                 new RuntimeException(String.format("Card with ID %s not found", input.cardId())));
 
         BigDecimal averageAmount = transactionService.findAverageAmountByUserId(input.userId());
-        float amountToAverageRatio = input.amount().divide(averageAmount, RoundingMode.HALF_UP).floatValue();
+        float amountToAverageRatio = getAmountToAverageRatio(input.amount(), averageAmount);
         boolean hasCountryMismatch = !userEntity.getHomeCountryCode().equals(input.countryCode());
         boolean isDeviceTrusted = trustedDeviceService.existsById(input.deviceId());
         int hourOfDay = input.creationDateTime().getHour();
@@ -71,5 +71,10 @@ public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureReques
                 .hourOfDay(hourOfDay)
                 .cardAgeDays(cardAgeDays)
                 .build();
+    }
+
+    private static float getAmountToAverageRatio(BigDecimal amount, BigDecimal averageAmount) {
+        BigDecimal divisor = BigDecimal.ONE.max(amount);
+        return amount.divide(divisor, RoundingMode.HALF_UP).floatValue();
     }
 }

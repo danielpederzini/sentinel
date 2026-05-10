@@ -6,3 +6,5 @@ app:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     transactions-created-topic: ${KAFKA_TRANSACTIONS_CREATED_TOPIC:transactions.created}
+    acks: ${KAFKA_ACKS:all}
+    enable-idempotence: ${KAFKA_ENABLE_IDEMPOTENCE:true}

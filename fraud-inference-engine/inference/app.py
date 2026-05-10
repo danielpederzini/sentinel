@@ -4,6 +4,7 @@ import sys
 
 import joblib
 import numpy as np
+import uvicorn
 import xgboost as xgb
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -55,13 +56,13 @@ def score(request: FraudPredictionRequest) -> FraudPredictionResponse:
     feature_vector = np.array([[
         request.amount,
         request.user_average_amount,
-        request.user_transaction_count_5m,
-        request.user_transaction_count_1h,
-        request.time_since_last_transaction_sec,
+        request.user_transaction_count_5min,
+        request.user_transaction_count_1hour,
+        request.seconds_since_last_transaction,
         request.merchant_risk_score,
-        int(request.device_is_trusted),
-        int(request.country_mismatch),
-        request.amount_vs_user_average_ratio,
+        int(request.is_device_trusted),
+        int(request.has_country_mismatch),
+        request.amount_to_average_ratio,
         request.hour_of_day,
         request.ip_risk_score,
         request.card_age_days,
@@ -78,3 +79,8 @@ def score(request: FraudPredictionRequest) -> FraudPredictionResponse:
         risk_level=_find_risk_level(fraud_probability, _state["threshold"]),
         model_version=_state["version"],
     )
+
+if __name__ == "__main__":
+    host = os.environ.get("HOST", "0.0.0.0")
+    port = int(os.environ.get("PORT", "8083"))
+    uvicorn.run("app:app", host=host, port=port, reload=False)

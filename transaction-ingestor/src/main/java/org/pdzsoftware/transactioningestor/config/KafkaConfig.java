@@ -17,7 +17,6 @@ import java.util.Map;
 @Configuration
 @EnableConfigurationProperties(KafkaProperties.class)
 public class KafkaConfig {
-    private static final String ACKS_MODE = "all";
 
     @Bean
     public ProducerFactory<String, TransactionIngestionRequest> transactionProducerFactory(KafkaProperties kafkaProperties) {
@@ -25,8 +24,8 @@ public class KafkaConfig {
         producerConfigs.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaProperties.getBootstrapServers());
         producerConfigs.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         producerConfigs.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JacksonJsonSerializer.class);
-        producerConfigs.put(ProducerConfig.ACKS_CONFIG, ACKS_MODE);
-        producerConfigs.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
+        producerConfigs.put(ProducerConfig.ACKS_CONFIG, kafkaProperties.getAcks());
+        producerConfigs.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, kafkaProperties.isEnableIdempotence());
         return new DefaultKafkaProducerFactory<>(producerConfigs);
     }
 

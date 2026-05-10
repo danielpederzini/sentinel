@@ -1,3 +1,16 @@
+server:
+  port: 8081
+
 spring:
   application:
     name: anti-fraud-orchestrator
+
+app:
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    transactions-created-topic: ${KAFKA_TRANSACTIONS_CREATED_TOPIC:transactions.created}
+    consumer-group-id: ${KAFKA_CONSUMER_GROUP_ID:anti-fraud-orchestrator}
+    auto-offset-reset: ${KAFKA_AUTO_OFFSET_RESET:earliest}
+  clients:
+    feature-manager-base-url: ${FEATURE_MANAGER_BASE_URL:http://localhost:8082}
+    inference-engine-base-url: ${INFERENCE_ENGINE_BASE_URL:http://localhost:8083}
