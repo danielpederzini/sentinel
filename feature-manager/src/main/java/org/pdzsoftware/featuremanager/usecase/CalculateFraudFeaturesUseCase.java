@@ -74,7 +74,7 @@ public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureReques
     }
 
     private static float getAmountToAverageRatio(BigDecimal amount, BigDecimal averageAmount) {
-        BigDecimal divisor = BigDecimal.ONE.max(amount);
+        BigDecimal divisor = BigDecimal.ONE.max(averageAmount);
         return amount.divide(divisor, RoundingMode.HALF_UP).floatValue();
     }
 }
