@@ -1,4 +1,4 @@
-package org.pdzsoftware.featuremanager.exception;
+package org.pdzsoftware.featuremanager.dto;
 
 import lombok.Builder;
 import org.springframework.http.HttpStatusCode;
