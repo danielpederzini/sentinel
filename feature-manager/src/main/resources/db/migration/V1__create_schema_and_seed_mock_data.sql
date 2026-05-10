@@ -60,7 +60,7 @@ create table if not exists transaction_feature_vectors (
     has_country_mismatch boolean not null,
     amount_to_average_ratio real not null,
     hour_of_day integer not null,
-    ip_risk_score real not null,
+    ip_risk_score real not null check (ip_risk_score >= 0 and ip_risk_score <= 1),
     card_age_days bigint not null,
     constraint fk_tfv_transaction foreign key (transaction_id) references transactions (id)
 );
