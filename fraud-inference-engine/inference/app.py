@@ -4,6 +4,7 @@ import sys
 
 import joblib
 import numpy as np
+import uvicorn
 import xgboost as xgb
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -78,3 +79,8 @@ def score(request: FraudPredictionRequest) -> FraudPredictionResponse:
         risk_level=_find_risk_level(fraud_probability, _state["threshold"]),
         model_version=_state["version"],
     )
+
+if __name__ == "__main__":
+    host = os.environ.get("HOST", "0.0.0.0")
+    port = int(os.environ.get("PORT", "8083"))
+    uvicorn.run("app:app", host=host, port=port, reload=False)
