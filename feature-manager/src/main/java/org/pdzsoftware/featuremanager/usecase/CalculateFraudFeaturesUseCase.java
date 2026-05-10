@@ -7,10 +7,13 @@ import org.pdzsoftware.featuremanager.dto.FraudFeatureResult;
 import org.pdzsoftware.featuremanager.entity.CardEntity;
 import org.pdzsoftware.featuremanager.entity.MerchantEntity;
 import org.pdzsoftware.featuremanager.entity.UserEntity;
-import org.pdzsoftware.featuremanager.exception.CacheReadException;
-import org.pdzsoftware.featuremanager.exception.CacheUpdateException;
 import org.pdzsoftware.featuremanager.exception.FeatureCalculationException;
-import org.pdzsoftware.featuremanager.service.*;
+import org.pdzsoftware.featuremanager.service.CardService;
+import org.pdzsoftware.featuremanager.service.FeatureCacheService;
+import org.pdzsoftware.featuremanager.service.MerchantService;
+import org.pdzsoftware.featuremanager.service.TransactionService;
+import org.pdzsoftware.featuremanager.service.TrustedDeviceService;
+import org.pdzsoftware.featuremanager.service.UserService;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 

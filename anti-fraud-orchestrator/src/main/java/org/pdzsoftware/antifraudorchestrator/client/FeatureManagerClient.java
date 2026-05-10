@@ -7,8 +7,8 @@ import org.pdzsoftware.antifraudorchestrator.exception.FeatureManagerClientExcep
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 import java.util.Objects;
 
