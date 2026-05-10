@@ -49,40 +49,58 @@ create index if not exists idx_transactions_merchant_id on transactions (merchan
 create index if not exists idx_transactions_card_id on transactions (card_id);
 
 insert into users (id, email, birth_date, home_country_code, creation_date_time)
-values
-    ('user-001', 'alice.silva@example.com', date '1992-03-14', 'BR', timestamp '2026-01-10 09:15:00'),
-    ('user-002', 'bruno.costa@example.com', date '1988-07-02', 'US', timestamp '2026-01-12 14:45:00'),
-    ('user-003', 'carla.souza@example.com', date '1996-11-28', 'AR', timestamp '2026-01-18 11:20:00')
-on conflict (id) do nothing;
-
-insert into merchants (id, email, risk_score, category, creation_date_time)
-values
-    ('merchant-001', 'grocery.hub@example.com', 0.12, 'GROCERY', timestamp '2026-01-05 08:00:00'),
-    ('merchant-002', 'travel.now@example.com', 0.73, 'TRAVEL', timestamp '2026-01-06 10:30:00'),
-    ('merchant-003', 'movie.plus@example.com', 0.41, 'ENTERTAINMENT', timestamp '2026-01-08 16:10:00')
+select
+    format('user-%s', lpad(gs::text, 3, '0')),
+    format('user.%s@example.com', lpad(gs::text, 3, '0')),
+    date '1980-01-01' + ((gs * 97) % 12000),
+    (array['BR', 'US', 'AR', 'CL', 'CA', 'MX', 'GB', 'DE', 'FR', 'IN'])[(gs % 10) + 1],
+    timestamp '2026-02-01 08:00:00' + make_interval(hours => gs)
+from generate_series(1, 100) as gs
 on conflict (id) do nothing;
 
 insert into cards (id, type, creation_date_time)
-values
-    ('card-001', 'CREDIT', timestamp '2025-10-01 10:00:00'),
-    ('card-002', 'DEBIT', timestamp '2025-12-15 12:30:00'),
-    ('card-003', 'CREDIT_AND_DEBIT', timestamp '2026-02-01 18:45:00')
+select
+    format('card-%s', lpad(gs::text, 3, '0')),
+    case gs % 4
+        when 0 then 'CREDIT'
+        when 1 then 'DEBIT'
+        when 2 then 'CREDIT_AND_DEBIT'
+        else 'OTHER'
+    end,
+    timestamp '2026-01-01 09:00:00' + make_interval(days => gs)
+from generate_series(1, 100) as gs
 on conflict (id) do nothing;
 
 insert into trusted_devices (id, name, type, creation_date_time)
-values
-    ('device-001', 'Alice Phone', 'CELLPHONE', timestamp '2026-02-15 07:30:00'),
-    ('device-002', 'Bruno Laptop', 'LAPTOP', timestamp '2026-02-20 13:00:00'),
-    ('device-003', 'Store POS', 'POS', timestamp '2026-02-22 09:10:00')
+select
+    format('device-%s', lpad(gs::text, 3, '0')),
+    format('User %s Device', lpad(gs::text, 3, '0')),
+    case gs % 5
+        when 0 then 'CELLPHONE'
+        when 1 then 'LAPTOP'
+        when 2 then 'DESKTOP'
+        when 3 then 'POS'
+        else 'OTHER'
+    end,
+    timestamp '2026-02-10 10:00:00' + make_interval(hours => gs)
+from generate_series(1, 100) as gs
 on conflict (id) do nothing;
 
 insert into transactions (id, amount, country_code, ip_address, creation_date_time, user_id, trusted_device_id, merchant_id, card_id)
-values
-    ('tx-001', 120.50, 'BR', '177.54.10.20', timestamp '2026-05-01 09:00:00', 'user-001', 'device-001', 'merchant-001', 'card-001'),
-    ('tx-002', 85.90, 'BR', '177.54.10.21', timestamp '2026-05-01 09:03:00', 'user-001', 'device-001', 'merchant-001', 'card-001'),
-    ('tx-003', 430.00, 'US', '34.120.10.11', timestamp '2026-05-01 10:10:00', 'user-002', 'device-002', 'merchant-002', 'card-002'),
-    ('tx-004', 39.99, 'US', '34.120.10.12', timestamp '2026-05-01 10:40:00', 'user-002', 'device-002', 'merchant-003', 'card-002'),
-    ('tx-005', 210.75, 'AR', '181.23.44.10', timestamp '2026-05-01 11:15:00', 'user-003', null, 'merchant-003', 'card-003'),
-    ('tx-006', 199.90, 'CL', '190.12.1.33', timestamp '2026-05-01 11:55:00', 'user-003', null, 'merchant-002', 'card-003')
+select
+    format('tx-%s', lpad((gs + 1000)::text, 4, '0')),
+    round((25 + ((gs * 19) % 700) + ((gs % 100) / 100.0))::numeric, 2),
+    (array['BR', 'US', 'AR', 'CL', 'CA', 'MX', 'GB', 'DE', 'FR', 'IN'])[(gs % 10) + 1],
+    format('10.%s.%s.%s', gs % 255, (gs * 3) % 255, (gs * 7) % 255),
+    timestamp '2026-05-02 00:00:00' + make_interval(mins => gs * 3),
+    format('user-%s', lpad(gs::text, 3, '0')),
+    case when gs % 5 = 0 then null else format('device-%s', lpad(gs::text, 3, '0')) end,
+    case gs % 3
+        when 0 then 'merchant-001'
+        when 1 then 'merchant-002'
+        else 'merchant-003'
+    end,
+    format('card-%s', lpad(gs::text, 3, '0'))
+from generate_series(1, 100) as gs
 on conflict (id) do nothing;
 
