@@ -51,17 +51,17 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Sentinel Fraud Detection", lifespan=lifespan)
 
 @app.post("/transaction/score", response_model=FraudPredictionResponse)
-def score(request: FraudPredictionRequest) -> FraudPredictionResponse:
+async def score(request: FraudPredictionRequest) -> FraudPredictionResponse:
     feature_vector = np.array([[
         request.amount,
         request.user_average_amount,
-        request.user_transaction_count_5m,
-        request.user_transaction_count_1h,
-        request.time_since_last_transaction_sec,
+        request.user_transaction_count_5min,
+        request.user_transaction_count_1hour,
+        request.seconds_since_last_transaction,
         request.merchant_risk_score,
-        int(request.device_is_trusted),
-        int(request.country_mismatch),
-        request.amount_vs_user_average_ratio,
+        int(request.is_device_trusted),
+        int(request.has_country_mismatch),
+        request.amount_to_average_ratio,
         request.hour_of_day,
         request.ip_risk_score,
         request.card_age_days,
