@@ -1,13 +1,17 @@
 package org.pdzsoftware.featuremanager.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.pdzsoftware.featuremanager.config.RedisProperties;
+import org.pdzsoftware.featuremanager.exception.CacheReadException;
+import org.pdzsoftware.featuremanager.exception.CacheUpdateException;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class FeatureCacheService {
@@ -26,13 +30,19 @@ public class FeatureCacheService {
     }
 
     public void recordUserTransaction(String userId, String transactionId, long timestamp) {
-        long timestampInSeconds = normalizeToEpochSeconds(timestamp);
-        String userTransactionKey = USER_TRANSACTIONS_KEY_PREFIX + userId;
-        redisTemplate.opsForZSet().add(userTransactionKey, buildTransactionMember(transactionId), timestampInSeconds);
-        redisTemplate.expire(userTransactionKey, redisProperties.getTimeToLast());
+        try {
+            long timestampInSeconds = normalizeToEpochSeconds(timestamp);
+            String userTransactionKey = USER_TRANSACTIONS_KEY_PREFIX + userId;
+            redisTemplate.opsForZSet().add(userTransactionKey, buildTransactionMember(transactionId), timestampInSeconds);
+            redisTemplate.expire(userTransactionKey, redisProperties.getTimeToLast());
 
-        String lastTransactionKey = USER_LAST_TRANSACTION_KEY_PREFIX + userId;
-        redisTemplate.opsForValue().set(lastTransactionKey, String.valueOf(timestampInSeconds), redisProperties.getTimeToLast());
+            String lastTransactionKey = USER_LAST_TRANSACTION_KEY_PREFIX + userId;
+            redisTemplate.opsForValue().set(lastTransactionKey, String.valueOf(timestampInSeconds), redisProperties.getTimeToLast());
+        } catch (IllegalArgumentException exception) {
+            throw new CacheUpdateException(String.format(
+                    "Failed to record transaction %s for user %s", transactionId, userId), exception);
+        }
+
     }
 
     public long getUserTransactionCount5Min(String userId) {
@@ -48,31 +58,46 @@ public class FeatureCacheService {
     }
 
     private long getTransactionCountInWindow(String userId, long windowStart, long windowEnd) {
-        String userTransactionKey = USER_TRANSACTIONS_KEY_PREFIX + userId;
-        Long count = redisTemplate.opsForZSet().count(userTransactionKey, windowStart, windowEnd);
-        return count != null ? count : 0L;
+        try {
+            String userTransactionKey = USER_TRANSACTIONS_KEY_PREFIX + userId;
+            Long count = redisTemplate.opsForZSet().count(userTransactionKey, windowStart, windowEnd);
+            return count != null ? count : 0L;
+        } catch (IllegalArgumentException exception) {
+            throw new CacheReadException(String.format(
+                    "Failed to retrieve transaction count for user %s", userId), exception);
+        }
     }
 
     public long getSecondsSinceLastTransaction(String userId) {
-        String lastTransactionKey = USER_LAST_TRANSACTION_KEY_PREFIX + userId;
-        String lastTimestamp = redisTemplate.opsForValue().get(lastTransactionKey);
+        try {
+            String lastTransactionKey = USER_LAST_TRANSACTION_KEY_PREFIX + userId;
+            String lastTimestamp = redisTemplate.opsForValue().get(lastTransactionKey);
 
-        if (lastTimestamp == null) {
-            return Long.MAX_VALUE;
+            if (lastTimestamp == null) {
+                return Long.MAX_VALUE;
+            }
+
+            long lastTransactionTime = Long.parseLong(lastTimestamp);
+
+            long nowInSeconds = System.currentTimeMillis() / ONE_SECOND_IN_MILLIS;
+            return nowInSeconds - lastTransactionTime;
+        } catch (IllegalArgumentException exception) {
+            throw new CacheReadException(String.format(
+                    "Failed to retrieve last transaction time for user %s", userId), exception);
         }
-
-        long lastTransactionTime = Long.parseLong(lastTimestamp);
-
-        long nowInSeconds = System.currentTimeMillis() / ONE_SECOND_IN_MILLIS;
-        return nowInSeconds - lastTransactionTime;
     }
 
     public void cleanupOldTransactions(String userId) {
-        String userTransactionKey = USER_TRANSACTIONS_KEY_PREFIX + userId;
-        long nowInSeconds = System.currentTimeMillis() / ONE_SECOND_IN_MILLIS;
-        long cutoffTime = nowInSeconds - ONE_HOUR_IN_SECONDS;
+        try {
+            String userTransactionKey = USER_TRANSACTIONS_KEY_PREFIX + userId;
+            long nowInSeconds = System.currentTimeMillis() / ONE_SECOND_IN_MILLIS;
+            long cutoffTime = nowInSeconds - ONE_HOUR_IN_SECONDS;
 
-        redisTemplate.opsForZSet().removeRangeByScore(userTransactionKey, 0, cutoffTime);
+            redisTemplate.opsForZSet().removeRangeByScore(userTransactionKey, 0, cutoffTime);
+        } catch (IllegalArgumentException exception) {
+            throw new CacheUpdateException(String.format(
+                    "Failed to clean up old transactions for user %s", userId), exception);
+        }
     }
 
     private String buildTransactionMember(String transactionId) {
@@ -84,15 +109,4 @@ public class FeatureCacheService {
     private long normalizeToEpochSeconds(long timestamp) {
         return timestamp > EPOCH_MILLIS_THRESHOLD ? timestamp / ONE_SECOND_IN_MILLIS : timestamp;
     }
-
-    public void clearUserCache(String userId) {
-        String userTransactionKey = USER_TRANSACTIONS_KEY_PREFIX + userId;
-        String lastTransactionKey = USER_LAST_TRANSACTION_KEY_PREFIX + userId;
-        redisTemplate.delete(userTransactionKey);
-        redisTemplate.delete(lastTransactionKey);
-    }
 }
-
-
-
-
