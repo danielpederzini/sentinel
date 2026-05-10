@@ -45,12 +45,17 @@ export const options = {
   },
 };
 
-function pickCountryCode() {
-  const countryCodes = [
-    'AR', 'AU', 'BR', 'CA', 'CH', 'CL', 'CN', 'DE', 'ES', 'FR',
-    'GB', 'IN', 'IT', 'JP', 'MX', 'NL', 'PT', 'SE', 'US', 'ZA',
-  ];
-  return countryCodes[Math.floor(Math.random() * countryCodes.length)];
+const USER_IDS = Array.from({ length: 100 }, (_, i) => `user-${String(i + 1).padStart(3, '0')}`);
+const CARD_IDS = ['card-001', 'card-002', 'card-003'];
+const MERCHANT_IDS = ['merchant-001', 'merchant-002', 'merchant-003'];
+const DEVICE_IDS = ['device-001', 'device-002', 'device-003'];
+const COUNTRY_CODES = [
+  'AR', 'AU', 'BR', 'CA', 'CH', 'CL', 'CN', 'DE', 'ES', 'FR',
+  'GB', 'IN', 'IT', 'JP', 'MX', 'NL', 'PT', 'SE', 'US', 'ZA',
+];
+
+function pick(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
 }
 
 function generatePayload() {
@@ -61,12 +66,12 @@ function generatePayload() {
 
   return {
     transactionId: `txn-${suffix}`,
-    userId: `user-${Math.floor(Math.random() * 500000)}`,
-    cardId: `card-${Math.floor(Math.random() * 1000000)}`,
-    merchantId: `merchant-${Math.floor(Math.random() * 10000)}`,
-    deviceId: `device-${Math.floor(Math.random() * 100000)}`,
+    userId: pick(USER_IDS),
+    cardId: pick(CARD_IDS),
+    merchantId: pick(MERCHANT_IDS),
+    deviceId: pick(DEVICE_IDS),
     amount: Number((Math.random() * 4000 + 1).toFixed(2)),
-    countryCode: pickCountryCode(),
+    countryCode: pick(COUNTRY_CODES),
     ipAddress: `10.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`,
     creationDateTime: dateTime,
   };
