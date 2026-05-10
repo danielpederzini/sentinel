@@ -48,6 +48,31 @@ create index if not exists idx_transactions_creation_date_time on transactions (
 create index if not exists idx_transactions_merchant_id on transactions (merchant_id);
 create index if not exists idx_transactions_card_id on transactions (card_id);
 
+create table if not exists transaction_feature_vectors (
+    transaction_id varchar(64) primary key,
+    amount numeric(19, 2) not null,
+    user_average_amount numeric(19, 2) not null,
+    user_transaction_count5_min bigint not null,
+    user_transaction_count1_hour bigint not null,
+    seconds_since_last_transaction bigint not null,
+    merchant_risk_score real not null,
+    is_device_trusted boolean not null,
+    has_country_mismatch boolean not null,
+    amount_to_average_ratio real not null,
+    hour_of_day integer not null,
+    ip_risk_score real not null,
+    card_age_days bigint not null,
+    constraint fk_tfv_transaction foreign key (transaction_id) references transactions (id)
+);
+
+create table if not exists transaction_predictions (
+    transaction_id varchar(64) primary key,
+    fraud_probability double precision not null,
+    risk_level varchar(16) not null,
+    model_version varchar(64) not null,
+    constraint fk_tp_transaction foreign key (transaction_id) references transactions (id)
+);
+
 insert into users (id, email, birth_date, home_country_code, creation_date_time)
 values
     ('user-001', 'hugo.silva1@example.com', date '1993-05-08', 'DE', timestamp '2025-01-22 18:57:00'),
@@ -173,7 +198,17 @@ values
     ('device-003', 'Store POS', 'POS', timestamp '2026-02-22 09:10:00')
 on conflict (id) do nothing;
 
-insert into transactions (id, amount, country_code, ip_address, creation_date_time, user_id, trusted_device_id, merchant_id, card_id)
+insert into transactions (
+    id,
+    amount,
+    country_code,
+    ip_address,
+    creation_date_time,
+    user_id,
+    trusted_device_id,
+    merchant_id,
+    card_id
+)
 values
     ('tx-001', 120.50, 'BR', '177.54.10.20', timestamp '2026-05-01 09:00:00', 'user-001', 'device-001', 'merchant-001', 'card-001'),
     ('tx-002', 85.90, 'BR', '177.54.10.21', timestamp '2026-05-01 09:03:00', 'user-001', 'device-001', 'merchant-001', 'card-001'),
@@ -182,4 +217,38 @@ values
     ('tx-005', 210.75, 'AR', '181.23.44.10', timestamp '2026-05-01 11:15:00', 'user-003', null, 'merchant-003', 'card-003'),
     ('tx-006', 199.90, 'CL', '190.12.1.33', timestamp '2026-05-01 11:55:00', 'user-003', null, 'merchant-002', 'card-003')
 on conflict (id) do nothing;
+
+insert into transaction_feature_vectors (
+    transaction_id,
+    amount,
+    user_average_amount,
+    user_transaction_count5_min,
+    user_transaction_count1_hour,
+    seconds_since_last_transaction,
+    merchant_risk_score,
+    is_device_trusted,
+    has_country_mismatch,
+    amount_to_average_ratio,
+    hour_of_day,
+    ip_risk_score,
+    card_age_days
+)
+values
+    ('tx-001', 120.50, 102.30, 2, 2, 180, 0.12, true,  true, 1.17,  9, 0.05, 212),
+    ('tx-002', 85.90,  102.30, 2, 2, 120, 0.12, true,  true, 0.84,  9, 0.04, 212),
+    ('tx-003', 430.00, 214.50, 1, 3, 300, 0.73, true,  true, 2.00, 10, 0.22, 138),
+    ('tx-004', 39.99,  214.50, 1, 3, 90,  0.41, true,  true, 0.19, 10, 0.08, 138),
+    ('tx-005', 210.75, 205.32, 1, 2, 240, 0.41, false, true, 1.03, 11, 0.15,  89),
+    ('tx-006', 199.90, 205.32, 1, 2, 60,  0.73, false, true, 0.97, 11, 0.19,  89)
+on conflict (transaction_id) do nothing;
+
+insert into transaction_predictions (transaction_id, fraud_probability, risk_level, model_version)
+values
+    ('tx-001', 0.08, 'LOW', 'xgb_0.0.1'),
+    ('tx-002', 0.05, 'LOW', 'xgb_0.0.1'),
+    ('tx-003', 0.82, 'HIGH', 'xgb_0.0.1'),
+    ('tx-004', 0.14, 'LOW', 'xgb_0.0.1'),
+    ('tx-005', 0.31, 'MEDIUM', 'xgb_0.0.1'),
+    ('tx-006', 0.58, 'MEDIUM', 'xgb_0.0.1')
+on conflict (transaction_id) do nothing;
 

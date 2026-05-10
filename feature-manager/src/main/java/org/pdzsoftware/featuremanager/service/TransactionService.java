@@ -1,6 +1,7 @@
 package org.pdzsoftware.featuremanager.service;
 
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.lang3.StringUtils;
 import org.pdzsoftware.featuremanager.repostiory.TransactionRepository;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -16,5 +17,15 @@ public class TransactionService {
     public BigDecimal findAverageAmountByUserId(String userId) {
         Double average = transactionRepository.findAverageAmountByUserId(userId);
         return average == null ? BigDecimal.ZERO : BigDecimal.valueOf(average);
+    }
+
+    @Cacheable(cacheNames = "ipRiskScores", key = "#a0", condition = "#a0 != null && !#a0.isBlank()")
+    public float findIpRiskScoreByIpAddress(String ipAddress) {
+        if (StringUtils.isBlank(ipAddress)) {
+            return 0F;
+        }
+
+        Double ipRiskScore = transactionRepository.findIpRiskScoreByIpAddress(ipAddress);
+        return ipRiskScore == null ? 0F : ipRiskScore.floatValue();
     }
 }

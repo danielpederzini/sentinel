@@ -15,7 +15,6 @@ import org.pdzsoftware.featuremanager.service.TransactionService;
 import org.pdzsoftware.featuremanager.service.TrustedDeviceService;
 import org.pdzsoftware.featuremanager.service.UserService;
 import org.springframework.stereotype.Component;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -47,6 +46,7 @@ public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureReques
             boolean isDeviceTrusted = trustedDeviceService.existsById(input.deviceId());
             int hourOfDay = input.creationDateTime().getHour();
             long cardAgeDays = Duration.between(cardEntity.getCreationDateTime(), LocalDateTime.now()).toDays();
+            float ipRiskScore = transactionService.findIpRiskScoreByIpAddress(input.ipAddress());
 
             long secondsSinceLastTransaction = featureCacheService.getSecondsSinceLastTransaction(input.userId());
             long transactionCount5Min = featureCacheService.getUserTransactionCount5Min(input.userId());
@@ -66,12 +66,13 @@ public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureReques
                     .hasCountryMismatch(hasCountryMismatch)
                     .amountToAverageRatio(amountToAverageRatio)
                     .hourOfDay(hourOfDay)
+                    .ipRiskScore(ipRiskScore)
                     .cardAgeDays(cardAgeDays)
                     .build();
 
             log.info("Calculated fraud features for transaction {}", input.transactionId());
             return fraudFeatureResult;
-        } catch (ResponseStatusException | IllegalArgumentException exception) {
+        } catch (RuntimeException exception) {
             throw new FeatureCalculationException(String.format(
                     "Failed to calculate fraud features for transaction %s", input.transactionId()), exception);
         }
