@@ -1,4 +1,4 @@
-package org.pdzsoftware.transactioningestor.config;
+package org.pdzsoftware.transactioningestor.config.properties;
 
 import lombok.Getter;
 import lombok.Setter;
