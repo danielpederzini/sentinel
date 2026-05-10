@@ -22,7 +22,8 @@ public class CaffeineProperties {
             "cardsExists",
             "usersExists",
             "trustedDevicesExists",
-            "userAverageAmounts"
+            "userAverageAmounts",
+            "ipRiskScores"
     );
 
     private long maximumSize = 1000;

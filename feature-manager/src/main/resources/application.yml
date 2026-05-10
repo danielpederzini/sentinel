@@ -49,5 +49,6 @@ feature:
         - usersExists
         - trustedDevicesExists
         - userAverageAmounts
+        - ipRiskScores
     redis:
       time-to-last: 10m

@@ -10,7 +10,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public record TransactionCreatedMessage(
-        String transactionId,
+        @NotBlank String transactionId,
         @NotBlank String userId,
         @NotBlank String cardId,
         @NotBlank String merchantId,
