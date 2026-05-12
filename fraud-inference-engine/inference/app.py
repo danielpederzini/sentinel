@@ -31,6 +31,21 @@ MODELS_DIRECTORY = os.environ.get(
     os.path.join(os.path.dirname(__file__), "..", "training", "models"),
 )
 
+FEATURE_NAMES = [
+    "amount",
+    "user_average_amount",
+    "user_transaction_count5_min",
+    "user_transaction_count1_hour",
+    "seconds_since_last_transaction",
+    "merchant_risk_score",
+    "is_device_trusted",
+    "has_country_mismatch",
+    "amount_to_average_ratio",
+    "hour_of_day",
+    "ip_risk_score",
+    "card_age_days",
+]
+
 _state: dict = {}
 _error_logger = ErrorLogger()
 
@@ -57,6 +72,54 @@ def _find_risk_level(probability: float, threshold: float) -> RiskLevel:
     if probability >= threshold * 0.5:
         return RiskLevel.MEDIUM
     return RiskLevel.LOW
+
+
+def _build_feature_values(request: FraudPredictionRequest) -> dict[str, float | int | bool]:
+    return {
+        "amount": request.amount,
+        "user_average_amount": request.user_average_amount,
+        "user_transaction_count_5min": request.user_transaction_count_5min,
+        "user_transaction_count_1hour": request.user_transaction_count_1hour,
+        "seconds_since_last_transaction": request.seconds_since_last_transaction,
+        "merchant_risk_score": request.merchant_risk_score,
+        "is_device_trusted": request.is_device_trusted,
+        "has_country_mismatch": request.has_country_mismatch,
+        "amount_to_average_ratio": request.amount_to_average_ratio,
+        "hour_of_day": request.hour_of_day,
+        "ip_risk_score": request.ip_risk_score,
+        "card_age_days": request.card_age_days,
+    }
+
+
+def _build_explainability(
+    request: FraudPredictionRequest,
+    feature_vector: np.ndarray,
+    model: xgb.XGBClassifier,
+    top_k: int = 5,
+) -> dict:
+    feature_values = _build_feature_values(request)
+    dmatrix = xgb.DMatrix(feature_vector, feature_names=FEATURE_NAMES)
+    contributions = model.get_booster().predict(dmatrix, pred_contribs=True)[0]
+
+    feature_contributions = []
+    for index, feature_name in enumerate(FEATURE_NAMES):
+        contribution = float(contributions[index])
+        feature_contributions.append({
+            "feature_name": feature_name,
+            "feature_value": feature_values[feature_name],
+            "contribution": contribution,
+            "direction": "INCREASED_FRAUD_RISK" if contribution >= 0 else "DECREASED_FRAUD_RISK",
+        })
+
+    top_contributing_features = sorted(
+        feature_contributions,
+        key=lambda item: abs(item["contribution"]),
+        reverse=True,
+    )[:top_k]
+
+    return {
+        "top_contributing_features": top_contributing_features,
+    }
 
 
 @asynccontextmanager
@@ -163,7 +226,8 @@ def score(request: FraudPredictionRequest) -> FraudPredictionResponse:
             request.card_age_days,
         ]])
 
-        raw_probability: float = float(_state["model"].predict_proba(feature_vector)[0, 1])
+        model: xgb.XGBClassifier = _state["model"]
+        raw_probability: float = float(model.predict_proba(feature_vector)[0, 1])
 
         calibrator: IsotonicRegression | None = _state["calibrator"]
         fraud_probability = (
@@ -177,6 +241,7 @@ def score(request: FraudPredictionRequest) -> FraudPredictionResponse:
             fraud_probability=fraud_probability,
             risk_level=_find_risk_level(fraud_probability, _state["threshold"]),
             model_version=_state["version"],
+            explainability=_build_explainability(request, feature_vector, model),
         )
         return response
     except PredictionException:
