@@ -1,5 +1,6 @@
 package org.pdzsoftware.antifraudorchestrator.client;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import org.pdzsoftware.antifraudorchestrator.client.dto.FraudFeatureRequest;
 import org.pdzsoftware.antifraudorchestrator.client.dto.FraudFeatureResult;
 import org.pdzsoftware.antifraudorchestrator.dto.TransactionCreatedMessage;
@@ -27,6 +28,7 @@ public class FeatureManagerClient {
 			FraudFeatureResult response = restClient.post()
 					.uri(FRAUD_FEATURES_ENDPOINT)
 					.contentType(MediaType.APPLICATION_JSON)
+					.accept(MediaType.APPLICATION_JSON)
 					.body(request)
 					.retrieve()
 					.body(FraudFeatureResult.class);

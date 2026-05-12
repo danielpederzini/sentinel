@@ -62,6 +62,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    container_name: sentinel-redis
     ports:
       - "6379:6379"
     volumes:
@@ -73,6 +74,86 @@ services:
       retries: 5
       start_period: 10s
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: sentinel-postgres
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: feature_manager
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d feature_manager"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  fraud-inference-engine:
+    build:
+      context: ./fraud-inference-engine
+      dockerfile: inference/Dockerfile
+    container_name: sentinel-fraud-inference-engine
+    ports:
+      - "8083:8083"
+
+  feature-manager:
+    build:
+      context: ./feature-manager
+      dockerfile: Dockerfile
+    container_name: sentinel-feature-manager
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/feature_manager
+      DB_USERNAME: postgres
+      DB_PASSWORD: admin
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+
+  anti-fraud-orchestrator:
+    build:
+      context: ./anti-fraud-orchestrator
+      dockerfile: Dockerfile
+    container_name: sentinel-anti-fraud-orchestrator
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      feature-manager:
+        condition: service_started
+      fraud-inference-engine:
+        condition: service_started
+    ports:
+      - "8081:8081"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_TRANSACTIONS_CREATED_TOPIC: transactions.created
+      FEATURE_MANAGER_BASE_URL: http://feature-manager:8082
+      INFERENCE_ENGINE_BASE_URL: http://fraud-inference-engine:8083
+
+  transaction-ingestor:
+    build:
+      context: ./transaction-ingestor
+      dockerfile: Dockerfile
+    container_name: sentinel-transaction-ingestor
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_TRANSACTIONS_CREATED_TOPIC: transactions.created
+
 volumes:
   kafka_data:
   redis_data:
+  postgres_data:

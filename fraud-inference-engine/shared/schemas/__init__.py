@@ -1,6 +1,6 @@
 from .enums import RiskLevel
 from .request import FraudPredictionRequest
-from .response import FraudPredictionResponse
+from .response import FraudPredictionResponse, ExplainabilityDetails, FeatureContribution
 from .exceptions import (
     ErrorResponse,
     InferenceException,
@@ -14,6 +14,8 @@ __all__ = [
     "RiskLevel",
     "FraudPredictionRequest",
     "FraudPredictionResponse",
+    "ExplainabilityDetails",
+    "FeatureContribution",
     "ErrorResponse",
     "InferenceException",
     "ModelLoadException",

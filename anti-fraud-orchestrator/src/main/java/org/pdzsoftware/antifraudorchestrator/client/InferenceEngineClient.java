@@ -27,6 +27,7 @@ public class InferenceEngineClient {
 			FraudPredictionResponse response = restClient.post()
 					.uri(TRANSACTION_SCORE_ENDPOINT)
 					.contentType(MediaType.APPLICATION_JSON)
+					.accept(MediaType.APPLICATION_JSON)
 					.body(request)
 					.retrieve()
 					.body(FraudPredictionResponse.class);
