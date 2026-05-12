@@ -1,9 +1,9 @@
-package org.pdzsoftware.transactioningestor.config;
+package org.pdzsoftware.transactioningestor.infrastructure.config;
 
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.pdzsoftware.transactioningestor.config.properties.KafkaProperties;
-import org.pdzsoftware.transactioningestor.dto.TransactionIngestionRequest;
+import org.pdzsoftware.transactioningestor.infrastructure.config.properties.KafkaProducerProperties;
+import org.pdzsoftware.transactioningestor.infrastructure.inbound.controller.dto.TransactionIngestionRequest;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,17 +16,17 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Configuration
-@EnableConfigurationProperties(KafkaProperties.class)
-public class KafkaConfig {
+@EnableConfigurationProperties(KafkaProducerProperties.class)
+public class KafkaProducerConfig {
 
     @Bean
-    public ProducerFactory<String, TransactionIngestionRequest> transactionProducerFactory(KafkaProperties kafkaProperties) {
+    public ProducerFactory<String, TransactionIngestionRequest> transactionProducerFactory(KafkaProducerProperties kafkaProducerProperties) {
         Map<String, Object> producerConfigs = new HashMap<>();
-        producerConfigs.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaProperties.getBootstrapServers());
+        producerConfigs.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaProducerProperties.getBootstrapServers());
         producerConfigs.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         producerConfigs.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JacksonJsonSerializer.class);
-        producerConfigs.put(ProducerConfig.ACKS_CONFIG, kafkaProperties.getAcks());
-        producerConfigs.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, kafkaProperties.isEnableIdempotence());
+        producerConfigs.put(ProducerConfig.ACKS_CONFIG, kafkaProducerProperties.getAcks());
+        producerConfigs.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, kafkaProducerProperties.isIdempotenceEnabled());
         return new DefaultKafkaProducerFactory<>(producerConfigs);
     }
 

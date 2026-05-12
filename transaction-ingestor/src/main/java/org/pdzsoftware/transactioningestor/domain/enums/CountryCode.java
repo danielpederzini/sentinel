@@ -1,4 +1,4 @@
-package org.pdzsoftware.transactioningestor.enums;
+package org.pdzsoftware.transactioningestor.domain.enums;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

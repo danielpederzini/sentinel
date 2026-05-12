@@ -1,7 +1,7 @@
-package org.pdzsoftware.transactioningestor.exception.handler;
+package org.pdzsoftware.transactioningestor.domain.exception.handler;
 
 import lombok.extern.slf4j.Slf4j;
-import org.pdzsoftware.transactioningestor.dto.ErrorResponse;
+import org.pdzsoftware.transactioningestor.domain.dto.ErrorResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;

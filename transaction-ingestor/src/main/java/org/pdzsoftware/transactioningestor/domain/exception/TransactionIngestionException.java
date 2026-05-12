@@ -1,4 +1,4 @@
-package org.pdzsoftware.transactioningestor.exception;
+package org.pdzsoftware.transactioningestor.domain.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;

@@ -1,10 +1,10 @@
-package org.pdzsoftware.transactioningestor.controller;
+package org.pdzsoftware.transactioningestor.infrastructure.inbound.controller;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.pdzsoftware.transactioningestor.dto.TransactionIngestionRequest;
-import org.pdzsoftware.transactioningestor.dto.TransactionIngestionResponse;
-import org.pdzsoftware.transactioningestor.service.TransactionIngestionService;
+import org.pdzsoftware.transactioningestor.infrastructure.inbound.controller.dto.TransactionIngestionRequest;
+import org.pdzsoftware.transactioningestor.infrastructure.inbound.controller.dto.TransactionIngestionResponse;
+import org.pdzsoftware.transactioningestor.application.service.TransactionIngestionService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;

@@ -1,13 +1,13 @@
-package org.pdzsoftware.transactioningestor.service;
+package org.pdzsoftware.transactioningestor.application.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.producer.RecordMetadata;
-import org.pdzsoftware.transactioningestor.dto.TransactionIngestionRequest;
-import org.pdzsoftware.transactioningestor.dto.TransactionIngestionResponse;
-import org.pdzsoftware.transactioningestor.exception.KafkaPublishException;
-import org.pdzsoftware.transactioningestor.producer.TransactionProducer;
+import org.pdzsoftware.transactioningestor.infrastructure.inbound.controller.dto.TransactionIngestionRequest;
+import org.pdzsoftware.transactioningestor.infrastructure.inbound.controller.dto.TransactionIngestionResponse;
+import org.pdzsoftware.transactioningestor.domain.exception.KafkaPublishException;
+import org.pdzsoftware.transactioningestor.infrastructure.outbound.producer.TransactionProducer;
 import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;

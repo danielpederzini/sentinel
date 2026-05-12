@@ -1,4 +1,4 @@
-package org.pdzsoftware.transactioningestor.config;
+package org.pdzsoftware.transactioningestor.infrastructure.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

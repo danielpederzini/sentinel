@@ -1,10 +1,10 @@
-package org.pdzsoftware.transactioningestor.dto;
+package org.pdzsoftware.transactioningestor.infrastructure.inbound.controller.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PastOrPresent;
 import jakarta.validation.constraints.Positive;
-import org.pdzsoftware.transactioningestor.enums.CountryCode;
+import org.pdzsoftware.transactioningestor.domain.enums.CountryCode;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
