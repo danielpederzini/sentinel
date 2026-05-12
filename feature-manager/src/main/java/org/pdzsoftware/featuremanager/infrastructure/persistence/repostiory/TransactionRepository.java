@@ -12,8 +12,8 @@ public interface TransactionRepository extends JpaRepository<TransactionEntity, 
     @Query("""
             select coalesce(
                 sum(case
-                        when tp.riskLevel = org.pdzsoftware.featuremanager.enums.RiskLevel.HIGH then 1.0
-                        when tp.riskLevel = org.pdzsoftware.featuremanager.enums.RiskLevel.MEDIUM then 0.5
+                        when tp.riskLevel = org.pdzsoftware.featuremanager.domain.enums.RiskLevel.HIGH then 1.0
+                        when tp.riskLevel = org.pdzsoftware.featuremanager.domain.enums.RiskLevel.MEDIUM then 0.5
                         else 0.0
                     end) / nullif(count(t), 0),
                 0.0
