@@ -34,8 +34,8 @@ MODELS_DIRECTORY = os.environ.get(
 FEATURE_NAMES = [
     "amount",
     "user_average_amount",
-    "user_transaction_count5_min",
-    "user_transaction_count1_hour",
+    "user_transaction_count_5min",
+    "user_transaction_count_1hour",
     "seconds_since_last_transaction",
     "merchant_risk_score",
     "is_device_trusted",
