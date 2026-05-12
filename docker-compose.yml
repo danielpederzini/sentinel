@@ -139,6 +139,22 @@ services:
       FEATURE_MANAGER_BASE_URL: http://feature-manager:8082
       INFERENCE_ENGINE_BASE_URL: http://fraud-inference-engine:8083
 
+  risk-action-handler:
+    build:
+      context: ./risk-action-handler
+      dockerfile: Dockerfile
+    container_name: sentinel-risk-action-handler
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      anti-fraud-orchestrator:
+        condition: service_started
+    ports:
+      - "8084:8084"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_TRANSACTIONS_SCORED_TOPIC: transactions.scored
+
   transaction-ingestor:
     build:
       context: ./transaction-ingestor
