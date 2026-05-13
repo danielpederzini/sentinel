@@ -12,3 +12,9 @@ app:
       transactions-scored-topic: ${KAFKA_TRANSACTIONS_SCORED_TOPIC:transactions.scored}
       consumer-group-id: ${KAFKA_CONSUMER_GROUP_ID:risk-action-handler}
       auto-offset-reset: ${KAFKA_AUTO_OFFSET_RESET:earliest}
+  clients:
+    llm-base-url: ${LLM_BASE_URL:https://api.groq.com/openai/v1}
+    llm-api-key: ${GROQ_API_KEY:}
+    llm-model: ${LLM_MODEL:llama-3.1-8b-instant}
+    llm-temperature: ${LLM_TEMPERATURE:0.2}
+    llm-max-completion-tokens: ${LLM_MAX_COMPLETION_TOKENS:512}
