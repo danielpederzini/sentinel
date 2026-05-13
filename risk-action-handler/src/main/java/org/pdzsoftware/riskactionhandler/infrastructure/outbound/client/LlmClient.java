@@ -32,15 +32,20 @@ public class LlmClient {
 		this.properties = properties;
 	}
 
-	public String explainFraud(TransactionScoredMessage transactionScoredMessage) {
+	public String getFraudExplanation(TransactionScoredMessage transactionScoredMessage) {
 		try {
-			ChatCompletionRequest request = new ChatCompletionRequest(
-					properties.getLlmModel(),
-					List.of(new ChatMessage(ROLE_NAME, EXPLAIN_FRAUD_PROMPT + transactionScoredMessage)),
-					properties.getLlmTemperature(),
-					properties.getLlmMaxCompletionTokens(),
-					false
-			);
+			ChatMessage chatMessage = ChatMessage.builder()
+					.role(ROLE_NAME)
+					.content(EXPLAIN_FRAUD_PROMPT + transactionScoredMessage.toString())
+					.build();
+
+			ChatCompletionRequest request = ChatCompletionRequest.builder()
+					.model(properties.getLlmModel())
+					.messages(List.of(chatMessage))
+					.temperature(properties.getLlmTemperature())
+					.maxCompletionTokens(properties.getLlmMaxCompletionTokens())
+					.stream(false)
+					.build();
 
 			ChatCompletionResponse response = restClient.post()
 					.uri(CHAT_COMPLETIONS_ENDPOINT)

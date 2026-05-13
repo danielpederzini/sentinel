@@ -28,8 +28,9 @@ public class TransactionConsumer {
 	public void consume(@Valid TransactionScoredMessage payload,
 	                    @Header(KafkaHeaders.RECEIVED_KEY) String messageKey) {
 		if (RiskLevel.HIGH.equals(payload.predictionMessage().riskLevel())) {
-			String response = llmClient.explainFraud(payload);
-			log.info("LLM explainability response for transaction {} with key {}: {}", payload.transactionId(), messageKey, response);
+			String fraudExplanation = llmClient.getFraudExplanation(payload);
+			log.info("LLM explainability fraudExplanation for transaction {} with key {}: {}",
+					payload.transactionId(), messageKey, fraudExplanation);
 		}
 	}
 }
