@@ -154,6 +154,7 @@ services:
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       KAFKA_TRANSACTIONS_SCORED_TOPIC: transactions.scored
+      GROQ_API_KEY: ${GROQ_API_KEY}
 
   transaction-ingestor:
     build:
