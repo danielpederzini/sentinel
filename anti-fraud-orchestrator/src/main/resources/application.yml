@@ -18,5 +18,7 @@ app:
       acks: ${KAFKA_ACKS:all}
       enable-idempotence: ${KAFKA_ENABLE_IDEMPOTENCE:true}
   clients:
-    feature-manager-base-url: ${FEATURE_MANAGER_BASE_URL:http://localhost:8082}
-    inference-engine-base-url: ${INFERENCE_ENGINE_BASE_URL:http://localhost:8083}
+    feature-manager:
+      base-url: ${FEATURE_MANAGER_BASE_URL:http://localhost:8082}
+    inference-engine:
+      base-url: ${INFERENCE_ENGINE_BASE_URL:http://localhost:8083}

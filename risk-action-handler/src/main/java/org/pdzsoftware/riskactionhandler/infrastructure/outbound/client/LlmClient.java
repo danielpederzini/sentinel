@@ -1,7 +1,7 @@
 package org.pdzsoftware.riskactionhandler.infrastructure.outbound.client;
 
 import org.pdzsoftware.riskactionhandler.domain.exception.LlmClientException;
-import org.pdzsoftware.riskactionhandler.infrastructure.config.properties.RestClientProperties;
+import org.pdzsoftware.riskactionhandler.infrastructure.config.properties.LlmRestClientProperties;
 import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.TransactionScoredMessage;
 import org.pdzsoftware.riskactionhandler.infrastructure.outbound.client.dto.ChatCompletionRequest;
 import org.pdzsoftware.riskactionhandler.infrastructure.outbound.client.dto.ChatCompletionResponse;
@@ -25,9 +25,9 @@ public class LlmClient {
 			Answer in a concise and assertive paragraph summarizing only the most important insights:
 			""";
 	private final RestClient restClient;
-	private final RestClientProperties properties;
+	private final LlmRestClientProperties properties;
 
-	public LlmClient(@Qualifier("llmRestClient") RestClient restClient, RestClientProperties properties) {
+	public LlmClient(@Qualifier("llmRestClient") RestClient restClient, LlmRestClientProperties properties) {
 		this.restClient = restClient;
 		this.properties = properties;
 	}
@@ -40,10 +40,10 @@ public class LlmClient {
 					.build();
 
 			ChatCompletionRequest request = ChatCompletionRequest.builder()
-					.model(properties.getLlmModel())
+					.model(properties.getModel())
 					.messages(List.of(chatMessage))
-					.temperature(properties.getLlmTemperature())
-					.maxCompletionTokens(properties.getLlmMaxCompletionTokens())
+					.temperature(properties.getTemperature())
+					.maxCompletionTokens(properties.getMaxCompletionTokens())
 					.stream(false)
 					.build();
 
