@@ -4,7 +4,6 @@ import org.pdzsoftware.riskactionhandler.domain.exception.LlmClientException;
 import org.pdzsoftware.riskactionhandler.infrastructure.config.properties.LlmRestClientProperties;
 import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.ExplainabilityDetailsMessage;
 import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.FeatureContributionMessage;
-import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.FraudFeaturesMessage;
 import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.FraudPredictionMessage;
 import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.TransactionScoredMessage;
 import org.pdzsoftware.riskactionhandler.infrastructure.outbound.client.dto.ChatCompletionRequest;
@@ -88,7 +87,6 @@ public class LlmClient {
 	}
 
 	private String buildStructuredContext(TransactionScoredMessage message) {
-		FraudFeaturesMessage features = message.featuresMessage();
 		FraudPredictionMessage prediction = message.predictionMessage();
 
 		List<FeatureContributionMessage> contributions = Optional.ofNullable(prediction.explainability())
@@ -105,26 +103,7 @@ public class LlmClient {
 				  - Transaction ID: %s
 				  - Amount: $%s
 				  - Country: %s
-				  - IP Address: %s
 				  - Timestamp: %s
-
-				Fraud Detection Features:
-				  - User Average Amount: $%s
-				  - Amount-to-Average Ratio: %.2f
-				  - Transactions in Last 5 Min: %d
-				  - Transactions in Last 1 Hour: %d
-				  - Seconds Since Last Transaction: %d
-				  - Merchant Risk Score: %.2f
-				  - IP Risk Score: %.2f
-				  - Device Trusted: %s
-				  - Country Mismatch: %s
-				  - Card Age (days): %d
-				  - Hour of Day: %d
-
-				Model Prediction:
-				  - Risk Level: %s
-				  - Fraud Probability: %.2f%%
-				  - Model Version: %s
 
 				Top Contributing Features:
 				%s
@@ -132,22 +111,7 @@ public class LlmClient {
 				message.transactionId(),
 				message.amount(),
 				message.countryCode(),
-				message.ipAddress(),
 				message.creationDateTime(),
-				features.userAverageAmount(),
-				features.amountToAverageRatio(),
-				features.userTransactionCount5Min(),
-				features.userTransactionCount1Hour(),
-				features.secondsSinceLastTransaction(),
-				features.merchantRiskScore(),
-				features.ipRiskScore(),
-				features.isDeviceTrusted(),
-				features.hasCountryMismatch(),
-				features.cardAgeDays(),
-				features.hourOfDay(),
-				prediction.riskLevel(),
-				prediction.fraudProbability() * 100,
-				prediction.modelVersion(),
 				topFeatures
 		);
 	}
