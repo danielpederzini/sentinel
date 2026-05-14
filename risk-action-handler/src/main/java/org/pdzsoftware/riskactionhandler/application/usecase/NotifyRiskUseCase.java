@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.TransactionScoredMessage;
 import org.pdzsoftware.riskactionhandler.infrastructure.outbound.client.EmailClient;
+import org.pdzsoftware.riskactionhandler.infrastructure.outbound.client.EmailContentBuilder;
 import org.pdzsoftware.riskactionhandler.infrastructure.outbound.client.LlmClient;
 import org.springframework.stereotype.Component;
 
@@ -18,14 +19,14 @@ public class NotifyRiskUseCase implements VoidUseCase<TransactionScoredMessage> 
     public void execute(TransactionScoredMessage input) {
         String transactionId = input.transactionId();
         String fraudExplanation = llmClient.getFraudExplanation(input);
+        String emailContent = EmailContentBuilder.buildFraudAlertEmail(input, fraudExplanation);
 
         emailClient.sendEmail(
-                input.transactionId(),
+                transactionId,
                 String.format("Suspected Fraud: %s", transactionId),
-                fraudExplanation
+                emailContent
         );
 
-        log.info("Sent email with LLM explainability for transaction {}: {}",
-                transactionId, fraudExplanation);
+        log.info("Sent fraud alert email for transaction {}", transactionId);
     }
 }
