@@ -1,4 +1,4 @@
-package org.pdzsoftware.featuremanager.infrastructure.persistence.entity;
+package org.pdzsoftware.featuremanager.infrastructure.outbound.persistence.entity;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;

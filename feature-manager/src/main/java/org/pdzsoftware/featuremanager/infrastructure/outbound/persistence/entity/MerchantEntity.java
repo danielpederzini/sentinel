@@ -1,4 +1,4 @@
-package org.pdzsoftware.featuremanager.infrastructure.persistence.entity;
+package org.pdzsoftware.featuremanager.infrastructure.outbound.persistence.entity;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -14,7 +14,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.pdzsoftware.featuremanager.domain.enums.DeviceType;
+import org.pdzsoftware.featuremanager.domain.enums.MerchantCategory;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -25,21 +25,24 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "trusted_devices")
-public class TrustedDeviceEntity {
+@Table(name = "merchants")
+public class MerchantEntity {
     @Id
     private String id;
 
-    @Column
-    private String name;
+    @Column(nullable = false)
+    private String email;
+
+    @Column(nullable = false)
+    private float riskScore;
 
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
-    private DeviceType type;
+    private MerchantCategory category;
 
     @Column(nullable = false)
     private LocalDateTime creationDateTime;
 
-    @OneToMany(mappedBy = "trustedDevice", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "merchant", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<TransactionEntity> transactions;
 }

@@ -1,6 +1,6 @@
-package org.pdzsoftware.featuremanager.infrastructure.persistence.repostiory;
+package org.pdzsoftware.featuremanager.infrastructure.outbound.persistence.repostiory;
 
-import org.pdzsoftware.featuremanager.infrastructure.persistence.entity.TransactionEntity;
+import org.pdzsoftware.featuremanager.infrastructure.outbound.persistence.entity.TransactionEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
