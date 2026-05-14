@@ -27,7 +27,6 @@ public class EmailClient {
             message.setSubject(subject);
             message.setText(content);
             mailSender.send(message);
-            log.info("Email sent with ID {} to {}", id, destinationEmail);
         } catch (MailException exception) {
             throw new EmailClientException(String.format(
                     "Failed to send email with ID %s to %s", id, destinationEmail), exception);
