@@ -31,7 +31,7 @@ create table if not exists transactions (
     id varchar(64) primary key,
     amount numeric(19, 2) not null,
     country_code varchar(2) not null,
-    ip_address varchar(64) not null,
+    ip_address varchar(64),
     creation_date_time timestamp not null,
     user_id varchar(64) not null,
     trusted_device_id varchar(64),
