@@ -32,7 +32,6 @@ public class TransactionConsumer {
                     payload.transactionId(), messageKey, fraudExplanation);
             emailClient.sendEmail(
                     payload.transactionId(),
-                    "pederzinidaniel@hotmail.com",
                     String.format("Suspected Fraud: %s", payload.transactionId()),
                     fraudExplanation
             );
