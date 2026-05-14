@@ -2,6 +2,9 @@ package org.pdzsoftware.riskactionhandler.infrastructure.outbound.client;
 
 import org.pdzsoftware.riskactionhandler.domain.exception.LlmClientException;
 import org.pdzsoftware.riskactionhandler.infrastructure.config.properties.LlmRestClientProperties;
+import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.ExplainabilityDetailsMessage;
+import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.FeatureContributionMessage;
+import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.FraudPredictionMessage;
 import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.TransactionScoredMessage;
 import org.pdzsoftware.riskactionhandler.infrastructure.outbound.client.dto.ChatCompletionRequest;
 import org.pdzsoftware.riskactionhandler.infrastructure.outbound.client.dto.ChatCompletionResponse;
@@ -13,16 +16,25 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Component
 public class LlmClient {
 	private static final String ROLE_NAME = "user";
 	private static final String CHAT_COMPLETIONS_ENDPOINT = "/chat/completions";
 	private static final String EXPLAIN_FRAUD_PROMPT = """
-			Given the following transaction details, explain why it might be considered fraudulent.
-			Answer in a concise and assertive paragraph summarizing only the most important insights:
+			You are a fraud analyst reviewing a flagged financial transaction. \
+			Based on the transaction data, fraud detection features, and model prediction below, \
+			write a concise explanation (2-3 sentences) of why this transaction was flagged as suspicious.
+
+			Focus on the most critical risk signals — such as unusual spending patterns, velocity anomalies, \
+			geographic mismatches, or device/IP risk — and explain their practical implications. \
+			Be direct and specific; avoid generic statements.
+
 			""";
 	private final RestClient restClient;
 	private final LlmRestClientProperties properties;
@@ -34,9 +46,11 @@ public class LlmClient {
 
 	public String getFraudExplanation(TransactionScoredMessage transactionScoredMessage) {
 		try {
+			String structuredContext = buildStructuredContext(transactionScoredMessage);
+
 			ChatMessage chatMessage = ChatMessage.builder()
 					.role(ROLE_NAME)
-					.content(EXPLAIN_FRAUD_PROMPT + transactionScoredMessage.toString())
+					.content(EXPLAIN_FRAUD_PROMPT + structuredContext)
 					.build();
 
 			ChatCompletionRequest request = ChatCompletionRequest.builder()
@@ -70,5 +84,35 @@ public class LlmClient {
 			throw new LlmClientException(String.format("Failed to get LLM explainability details for transaction %s",
 					transactionScoredMessage.transactionId()), exception);
 		}
+	}
+
+	private String buildStructuredContext(TransactionScoredMessage message) {
+		FraudPredictionMessage prediction = message.predictionMessage();
+
+		List<FeatureContributionMessage> contributions = Optional.ofNullable(prediction.explainability())
+				.map(ExplainabilityDetailsMessage::topContributingFeatures)
+				.orElse(Collections.emptyList());
+
+		String topFeatures = contributions.stream()
+				.map(feature -> "  - %s = %s (contribution: %.4f, direction: %s)".formatted(
+						feature.featureName(), feature.featureValue(), feature.contribution(), feature.direction()))
+				.collect(Collectors.joining("\n"));
+
+		return """
+				Transaction:
+				  - Transaction ID: %s
+				  - Amount: $%s
+				  - Country: %s
+				  - Timestamp: %s
+
+				Top Contributing Features:
+				%s
+				""".formatted(
+				message.transactionId(),
+				message.amount(),
+				message.countryCode(),
+				message.creationDateTime(),
+				topFeatures
+		);
 	}
 }
