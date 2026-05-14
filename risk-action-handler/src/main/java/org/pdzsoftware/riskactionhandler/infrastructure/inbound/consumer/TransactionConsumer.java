@@ -24,13 +24,13 @@ public class TransactionConsumer {
             containerFactory = "kafkaListenerContainerFactory"
     )
     public void consume(@Valid TransactionScoredMessage payload) {
+        persistTransactionUseCase.execute(payload);
+
         FraudPredictionMessage predictionMessage = payload.predictionMessage();
         boolean isHighRisk = RiskLevel.HIGH.equals(predictionMessage.riskLevel());
 
         if (isHighRisk) {
             notifyRiskUseCase.execute(payload);
         }
-
-        persistTransactionUseCase.execute(payload);
     }
 }
