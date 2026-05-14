@@ -6,8 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @Getter
 @Setter
-@ConfigurationProperties(prefix = "app.clients")
-public class RestClientProperties {
-	private String featureManagerBaseUrl;
-	private String inferenceEngineBaseUrl;
+@ConfigurationProperties(prefix = "app.clients.feature-manager")
+public class FeatureManagerClientProperties {
+	private String baseUrl;
 }
