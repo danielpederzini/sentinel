@@ -4,6 +4,17 @@ server:
 spring:
   application:
     name: risk-action-handler
+  mail:
+    host: ${EMAIL_HOST:smtp.gmail.com}
+    port: ${EMAIL_PORT:587}
+    username: ${EMAIL_USERNAME:}
+    password: ${EMAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
 app:
   kafka:
@@ -13,6 +24,8 @@ app:
       consumer-group-id: ${KAFKA_CONSUMER_GROUP_ID:risk-action-handler}
       auto-offset-reset: ${KAFKA_AUTO_OFFSET_RESET:earliest}
   clients:
+    email:
+      destination-email: ${DESTINATION_EMAIL:}
     llm:
       base-url: ${LLM_BASE_URL:https://api.groq.com/openai/v1}
       api-key: ${LLM_API_KEY:}

@@ -1,0 +1,33 @@
+package org.pdzsoftware.riskactionhandler.infrastructure.outbound.client;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.pdzsoftware.riskactionhandler.domain.exception.EmailClientException;
+import org.springframework.mail.MailException;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.stereotype.Component;
+
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class EmailClient {
+    private final JavaMailSender mailSender;
+
+    public void sendEmail(String id,
+                          String destinationEmail,
+                          String subject,
+                          String content) {
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setTo(destinationEmail);
+            message.setSubject(subject);
+            message.setText(content);
+            mailSender.send(message);
+            log.info("Email sent with ID {} to {}", id, destinationEmail);
+        } catch (MailException exception) {
+            throw new EmailClientException(String.format(
+                    "Failed to send email with ID %s to %s", id, destinationEmail), exception);
+        }
+    }
+}
