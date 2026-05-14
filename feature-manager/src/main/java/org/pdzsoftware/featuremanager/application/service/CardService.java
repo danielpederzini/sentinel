@@ -1,9 +1,9 @@
 package org.pdzsoftware.featuremanager.application.service;
 
 import lombok.RequiredArgsConstructor;
-import org.pdzsoftware.featuremanager.infrastructure.persistence.entity.CardEntity;
+import org.pdzsoftware.featuremanager.infrastructure.outbound.persistence.entity.CardEntity;
 import org.pdzsoftware.featuremanager.domain.exception.CardNotFoundException;
-import org.pdzsoftware.featuremanager.infrastructure.persistence.repostiory.CardRepository;
+import org.pdzsoftware.featuremanager.infrastructure.outbound.persistence.repostiory.CardRepository;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 

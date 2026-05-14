@@ -1,9 +1,9 @@
 package org.pdzsoftware.featuremanager.application.service;
 
 import lombok.RequiredArgsConstructor;
-import org.pdzsoftware.featuremanager.infrastructure.persistence.entity.MerchantEntity;
+import org.pdzsoftware.featuremanager.infrastructure.outbound.persistence.entity.MerchantEntity;
 import org.pdzsoftware.featuremanager.domain.exception.MerchantNotFoundException;
-import org.pdzsoftware.featuremanager.infrastructure.persistence.repostiory.MerchantRepository;
+import org.pdzsoftware.featuremanager.infrastructure.outbound.persistence.repostiory.MerchantRepository;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 

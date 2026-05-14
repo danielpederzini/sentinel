@@ -2,7 +2,7 @@ package org.pdzsoftware.featuremanager.application.service;
 
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
-import org.pdzsoftware.featuremanager.infrastructure.persistence.repostiory.TransactionRepository;
+import org.pdzsoftware.featuremanager.infrastructure.outbound.persistence.repostiory.TransactionRepository;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 

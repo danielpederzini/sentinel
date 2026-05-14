@@ -110,6 +110,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      risk-action-handler:
+        condition: service_started
     ports:
       - "8082:8082"
     environment:
@@ -145,10 +147,10 @@ services:
       dockerfile: Dockerfile
     container_name: sentinel-risk-action-handler
     depends_on:
+      postgres:
+        condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
-      anti-fraud-orchestrator:
-        condition: service_started
     ports:
       - "8084:8084"
     environment:
@@ -160,6 +162,9 @@ services:
       EMAIL_USERNAME: ${EMAIL_USERNAME}
       EMAIL_PASSWORD: ${EMAIL_PASSWORD}
       DESTINATION_EMAIL: ${DESTINATION_EMAIL}
+      DB_URL: jdbc:postgresql://postgres:5432/feature_manager
+      DB_USERNAME: postgres
+      DB_PASSWORD: admin
 
   transaction-ingestor:
     build:

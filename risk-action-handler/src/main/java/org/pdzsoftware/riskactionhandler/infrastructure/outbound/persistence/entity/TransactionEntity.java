@@ -1,4 +1,4 @@
-package org.pdzsoftware.featuremanager.infrastructure.persistence.entity;
+package org.pdzsoftware.riskactionhandler.infrastructure.outbound.persistence.entity;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -15,7 +15,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.pdzsoftware.featuremanager.domain.enums.CountryCode;
+import org.pdzsoftware.riskactionhandler.domain.enums.CountryCode;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -38,7 +38,7 @@ public class TransactionEntity {
     @Enumerated(EnumType.STRING)
     private CountryCode countryCode;
 
-    @Column(nullable = false)
+    @Column
     private String ipAddress;
 
     @Column(nullable = false)
