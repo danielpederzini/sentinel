@@ -1,12 +1,15 @@
 package org.pdzsoftware.riskactionhandler.application.util;
 
 import lombok.experimental.UtilityClass;
+import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.ExplainabilityDetailsMessage;
 import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.FeatureContributionMessage;
 import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.FraudFeaturesMessage;
 import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.FraudPredictionMessage;
 import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.TransactionScoredMessage;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @UtilityClass
@@ -16,8 +19,11 @@ public class EmailContentBuilder {
 		FraudFeaturesMessage features = message.featuresMessage();
 		FraudPredictionMessage prediction = message.predictionMessage();
 
-		String contributingFeatures = formatContributingFeatures(
-				prediction.explainability().topContributingFeatures());
+		List<FeatureContributionMessage> contributions = Optional.ofNullable(prediction.explainability())
+				.map(ExplainabilityDetailsMessage::topContributingFeatures)
+				.orElse(Collections.emptyList());
+
+		String contributingFeatures = formatContributingFeatures(contributions);
 
 		return """
 				# Fraud Alert — Transaction %s

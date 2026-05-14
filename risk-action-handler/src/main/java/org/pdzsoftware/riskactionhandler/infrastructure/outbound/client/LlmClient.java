@@ -2,6 +2,7 @@ package org.pdzsoftware.riskactionhandler.infrastructure.outbound.client;
 
 import org.pdzsoftware.riskactionhandler.domain.exception.LlmClientException;
 import org.pdzsoftware.riskactionhandler.infrastructure.config.properties.LlmRestClientProperties;
+import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.ExplainabilityDetailsMessage;
 import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.FeatureContributionMessage;
 import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.FraudFeaturesMessage;
 import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.FraudPredictionMessage;
@@ -16,8 +17,10 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Component
@@ -88,7 +91,11 @@ public class LlmClient {
 		FraudFeaturesMessage features = message.featuresMessage();
 		FraudPredictionMessage prediction = message.predictionMessage();
 
-		String topFeatures = prediction.explainability().topContributingFeatures().stream()
+		List<FeatureContributionMessage> contributions = Optional.ofNullable(prediction.explainability())
+				.map(ExplainabilityDetailsMessage::topContributingFeatures)
+				.orElse(Collections.emptyList());
+
+		String topFeatures = contributions.stream()
 				.map(feature -> "  - %s = %s (contribution: %.4f, direction: %s)".formatted(
 						feature.featureName(), feature.featureValue(), feature.contribution(), feature.direction()))
 				.collect(Collectors.joining("\n"));
