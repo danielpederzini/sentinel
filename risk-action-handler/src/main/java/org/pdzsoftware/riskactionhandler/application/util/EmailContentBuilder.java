@@ -23,60 +23,71 @@ public class EmailContentBuilder {
 				.map(ExplainabilityDetailsMessage::topContributingFeatures)
 				.orElse(Collections.emptyList());
 
-		String contributingFeatures = formatContributingFeatures(contributions);
+		String contributingFeaturesRows = contributions.stream()
+				.map(feature -> "<tr><td>%s</td><td>%s</td><td>%.4f</td><td>%s</td></tr>".formatted(
+						feature.featureName(), feature.featureValue(), feature.contribution(), feature.direction()))
+				.collect(Collectors.joining("\n"));
 
 		return """
-				# Fraud Alert — Transaction %s
+				<html>
+				<body style="font-family: Arial, sans-serif; color: #333; max-width: 700px; margin: auto;">
+				  <h1 style="color: #b30000;">Fraud Alert &mdash; Transaction %s</h1>
+				  <hr>
 
-				---
+				  <h2>Transaction Details</h2>
+				  <table style="border-collapse: collapse; width: 100%%;">
+				    <tr><td style="padding: 4px 12px;"><strong>Transaction ID</strong></td><td>%s</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>User ID</strong></td><td>%s</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Card ID</strong></td><td>%s</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Merchant ID</strong></td><td>%s</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Device ID</strong></td><td>%s</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Amount</strong></td><td>$%s</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Country</strong></td><td>%s</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>IP Address</strong></td><td>%s</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Timestamp</strong></td><td>%s</td></tr>
+				  </table>
+				  <hr>
 
-				## Transaction Details
+				  <h2>Risk Assessment</h2>
+				  <table style="border-collapse: collapse; width: 100%%;">
+				    <tr><td style="padding: 4px 12px;"><strong>Risk Level</strong></td><td>%s</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Fraud Probability</strong></td><td>%.2f%%</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Model Version</strong></td><td>%s</td></tr>
+				  </table>
+				  <hr>
 
-				- **Transaction ID:** %s
-				- **User ID:** %s
-				- **Card ID:** %s
-				- **Merchant ID:** %s
-				- **Device ID:** %s
-				- **Amount:** $%s
-				- **Country:** %s
-				- **IP Address:** %s
-				- **Timestamp:** %s
+				  <h2>Fraud Detection Features</h2>
+				  <table style="border-collapse: collapse; width: 100%%;">
+				    <tr><td style="padding: 4px 12px;"><strong>User Average Amount</strong></td><td>$%s</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Amount-to-Average Ratio</strong></td><td>%.2f</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Transactions (last 5 min)</strong></td><td>%d</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Transactions (last 1 hour)</strong></td><td>%d</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Seconds Since Last Transaction</strong></td><td>%d</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Merchant Risk Score</strong></td><td>%.2f</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>IP Risk Score</strong></td><td>%.2f</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Device Trusted</strong></td><td>%s</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Country Mismatch</strong></td><td>%s</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Card Age (days)</strong></td><td>%d</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Hour of Day</strong></td><td>%d</td></tr>
+				  </table>
+				  <hr>
 
-				---
+				  <h2>Top Contributing Features</h2>
+				  <table style="border-collapse: collapse; width: 100%%;">
+				    <tr style="background-color: #f2f2f2;">
+				      <th style="padding: 6px 12px; text-align: left;">Feature</th>
+				      <th style="padding: 6px 12px; text-align: left;">Value</th>
+				      <th style="padding: 6px 12px; text-align: left;">Contribution</th>
+				      <th style="padding: 6px 12px; text-align: left;">Direction</th>
+				    </tr>
+				    %s
+				  </table>
+				  <hr>
 
-				## Risk Assessment
-
-				- **Risk Level:** %s
-				- **Fraud Probability:** %.2f%%
-				- **Model Version:** %s
-
-				---
-
-				## Fraud Detection Features
-
-				- **User Average Amount:** $%s
-				- **Amount-to-Average Ratio:** %.2f
-				- **Transactions (last 5 min):** %d
-				- **Transactions (last 1 hour):** %d
-				- **Seconds Since Last Transaction:** %d
-				- **Merchant Risk Score:** %.2f
-				- **IP Risk Score:** %.2f
-				- **Device Trusted:** %s
-				- **Country Mismatch:** %s
-				- **Card Age (days):** %d
-				- **Hour of Day:** %d
-
-				---
-
-				## Top Contributing Features
-
-				%s
-
-				---
-
-				## AI Analysis
-
-				%s
+				  <h2>AI Analysis</h2>
+				  <p>%s</p>
+				</body>
+				</html>
 				""".formatted(
 				message.transactionId(),
 				message.transactionId(),
@@ -102,15 +113,8 @@ public class EmailContentBuilder {
 				features.hasCountryMismatch(),
 				features.cardAgeDays(),
 				features.hourOfDay(),
-				contributingFeatures,
+				contributingFeaturesRows,
 				llmExplanation
 		);
-	}
-
-	private static String formatContributingFeatures(List<FeatureContributionMessage> features) {
-		return features.stream()
-				.map(feature -> "- **%s:** %s (contribution: %.4f, direction: %s)".formatted(
-						feature.featureName(), feature.featureValue(), feature.contribution(), feature.direction()))
-				.collect(Collectors.joining("\n"));
 	}
 }
