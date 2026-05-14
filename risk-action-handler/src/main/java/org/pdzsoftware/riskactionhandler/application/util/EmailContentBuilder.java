@@ -1,5 +1,6 @@
-package org.pdzsoftware.riskactionhandler.infrastructure.outbound.client;
+package org.pdzsoftware.riskactionhandler.application.util;
 
+import lombok.experimental.UtilityClass;
 import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.FeatureContributionMessage;
 import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.FraudFeaturesMessage;
 import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.FraudPredictionMessage;
@@ -8,14 +9,12 @@ import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.Tra
 import java.util.List;
 import java.util.stream.Collectors;
 
-public final class EmailContentBuilder {
+@UtilityClass
+public class EmailContentBuilder {
 
-	private EmailContentBuilder() {
-	}
-
-	public static String buildFraudAlertEmail(TransactionScoredMessage msg, String llmExplanation) {
-		FraudFeaturesMessage features = msg.featuresMessage();
-		FraudPredictionMessage prediction = msg.predictionMessage();
+	public static String buildFraudAlertEmail(TransactionScoredMessage message, String llmExplanation) {
+		FraudFeaturesMessage features = message.featuresMessage();
+		FraudPredictionMessage prediction = message.predictionMessage();
 
 		String contributingFeatures = formatContributingFeatures(
 				prediction.explainability().topContributingFeatures());
@@ -73,16 +72,16 @@ public final class EmailContentBuilder {
 
 				%s
 				""".formatted(
-				msg.transactionId(),
-				msg.transactionId(),
-				msg.userId(),
-				msg.cardId(),
-				msg.merchantId(),
-				msg.deviceId(),
-				msg.amount(),
-				msg.countryCode(),
-				msg.ipAddress(),
-				msg.creationDateTime(),
+				message.transactionId(),
+				message.transactionId(),
+				message.userId(),
+				message.cardId(),
+				message.merchantId(),
+				message.deviceId(),
+				message.amount(),
+				message.countryCode(),
+				message.ipAddress(),
+				message.creationDateTime(),
 				prediction.riskLevel(),
 				prediction.fraudProbability() * 100,
 				prediction.modelVersion(),
@@ -104,8 +103,8 @@ public final class EmailContentBuilder {
 
 	private static String formatContributingFeatures(List<FeatureContributionMessage> features) {
 		return features.stream()
-				.map(f -> "- **%s:** %s (contribution: %.4f, direction: %s)".formatted(
-						f.featureName(), f.featureValue(), f.contribution(), f.direction()))
+				.map(feature -> "- **%s:** %s (contribution: %.4f, direction: %s)".formatted(
+						feature.featureName(), feature.featureValue(), feature.contribution(), feature.direction()))
 				.collect(Collectors.joining("\n"));
 	}
 }

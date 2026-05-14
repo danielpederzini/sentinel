@@ -84,13 +84,13 @@ public class LlmClient {
 		}
 	}
 
-	private String buildStructuredContext(TransactionScoredMessage msg) {
-		FraudFeaturesMessage features = msg.featuresMessage();
-		FraudPredictionMessage prediction = msg.predictionMessage();
+	private String buildStructuredContext(TransactionScoredMessage message) {
+		FraudFeaturesMessage features = message.featuresMessage();
+		FraudPredictionMessage prediction = message.predictionMessage();
 
 		String topFeatures = prediction.explainability().topContributingFeatures().stream()
-				.map(f -> "  - %s = %s (contribution: %.4f, direction: %s)".formatted(
-						f.featureName(), f.featureValue(), f.contribution(), f.direction()))
+				.map(feature -> "  - %s = %s (contribution: %.4f, direction: %s)".formatted(
+						feature.featureName(), feature.featureValue(), feature.contribution(), feature.direction()))
 				.collect(Collectors.joining("\n"));
 
 		return """
@@ -122,11 +122,11 @@ public class LlmClient {
 				Top Contributing Features:
 				%s
 				""".formatted(
-				msg.transactionId(),
-				msg.amount(),
-				msg.countryCode(),
-				msg.ipAddress(),
-				msg.creationDateTime(),
+				message.transactionId(),
+				message.amount(),
+				message.countryCode(),
+				message.ipAddress(),
+				message.creationDateTime(),
 				features.userAverageAmount(),
 				features.amountToAverageRatio(),
 				features.userTransactionCount5Min(),

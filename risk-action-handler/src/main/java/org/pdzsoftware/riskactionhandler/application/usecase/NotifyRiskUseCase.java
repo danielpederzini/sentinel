@@ -4,7 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.TransactionScoredMessage;
 import org.pdzsoftware.riskactionhandler.infrastructure.outbound.client.EmailClient;
-import org.pdzsoftware.riskactionhandler.infrastructure.outbound.client.EmailContentBuilder;
+import org.pdzsoftware.riskactionhandler.application.util.EmailContentBuilder;
 import org.pdzsoftware.riskactionhandler.infrastructure.outbound.client.LlmClient;
 import org.springframework.stereotype.Component;
 
