@@ -20,7 +20,7 @@ public class NotificationOutboxScheduler {
     private final NotificationOutboxService notificationOutboxService;
     private final EmailClient emailClient;
 
-    @Scheduled(cron = "0 */5 * * * *")
+    @Scheduled(cron = "0 */1 * * * *")
     public void sendPendingNotifications() {
         List<NotificationOutboxEntity> pendingNotifications = notificationOutboxService.findPending();
 
