@@ -396,6 +396,7 @@ class UserState:
     recent_amounts_1h: deque = field(default_factory=deque)
     last_timestamp: datetime | None = None
     transaction_count: int = 0
+    escalation_score: float = 0.0
     last_amount: float = 0.0
 
 
@@ -754,15 +755,21 @@ def _choose_event_kind(rng: np.random.Generator, fraud_rate: float, stealth_rate
     return True, str(rng.choice(fraud_kinds, p=fraud_weights))
 
 
-def _choose_gap_seconds(rng: np.random.Generator, event_kind: str, activity_weight: float) -> int:
-    if event_kind == "burst":
-        return int(rng.integers(20, 420))
+def _choose_gap_seconds(
+    rng: np.random.Generator,
+    is_fraud: bool,
+    signals: dict[FraudSignal, float],
+    activity_weight: float,
+    hour_preference: str,
+) -> int:
+    if FraudSignal.BURST in signals:
+        strength = signals[FraudSignal.BURST]
+        max_gap = int(420 - 300 * strength)
+        return int(rng.integers(15, max(20, max_gap)))
 
     if is_fraud:
-        # Longer gaps for non-burst fraud to overlap with legit velocity patterns
         return int(np.clip(rng.lognormal(mean=math.log(45 * 60), sigma=1.2), 120, 36 * 3600))
 
-    # Legit: occasional burst-like sessions (shopping sprees, bill payments)
     if float(rng.random()) < 0.12:
         return int(rng.integers(30, 600))
 
@@ -892,7 +899,7 @@ def _generate_row(
         "user_average_amount": round(user_average_amount, 2),
         "user_transaction_count_5min": user_transaction_count_5m,
         "user_transaction_count_1hour": user_transaction_count_1h,
-        "seconds_since_last_transaction": seconds_since_last_transaction,
+        "seconds_since_last_transaction": seconds_since_last,
         "amount_velocity_1h": amount_velocity_1h,
         "merchant_risk_score": merchant_risk_score,
         "is_device_trusted": bool(is_device_trusted),
@@ -1158,6 +1165,7 @@ def simulate(
             ip_registry=ip_registry, merchant_registry=merchant_registry,
             fraud_ring_indices=fraud_ring_indices,
             high_risk_merchant_indices=high_risk_merchant_indices,
+            simulation_start=simulation_start,
         )
 
         # Test-then-large: for certain fraud types, prepend a small probe transaction.
