@@ -20,11 +20,13 @@ from tqdm import tqdm
 
 _OUTPUT_COLUMNS = [
     "transaction_id",
+    "user_id",
     "amount",
     "user_average_amount",
     "user_transaction_count_5min",
     "user_transaction_count_1hour",
     "seconds_since_last_transaction",
+    "amount_velocity_1h",
     "merchant_risk_score",
     "is_device_trusted",
     "has_country_mismatch",
@@ -391,9 +393,11 @@ class UserState:
     running_amount_count: int = 0
     recent_timestamps_5m: deque = field(default_factory=deque)
     recent_timestamps_1h: deque = field(default_factory=deque)
+    recent_amounts_1h: deque = field(default_factory=deque)
     last_timestamp: datetime | None = None
     transaction_count: int = 0
     escalation_score: float = 0.0
+    last_amount: float = 0.0
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -721,7 +725,9 @@ def _seed_hidden_history(state: UserState, rng: np.random.Generator, simulation_
         state.running_amount_sum += amount
         state.running_amount_count += 1
         state.last_timestamp = timestamp
+        state.last_amount = amount
         state.recent_timestamps_1h.append(timestamp)
+        state.recent_amounts_1h.append(amount)
         if timestamp >= simulation_start - timedelta(seconds=_FIVE_MINUTES):
             state.recent_timestamps_5m.append(timestamp)
 
@@ -733,11 +739,21 @@ def _prune_windows(state: UserState, current_timestamp: datetime) -> None:
         state.recent_timestamps_5m.popleft()
     while state.recent_timestamps_1h and state.recent_timestamps_1h[0] < cutoff_1h:
         state.recent_timestamps_1h.popleft()
+        if state.recent_amounts_1h:
+            state.recent_amounts_1h.popleft()
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Gap / timing
-# ──────────────────────────────────────────────────────────────────────────────
+def _choose_event_kind(rng: np.random.Generator, fraud_rate: float, stealth_rate: float) -> tuple[bool, str]:
+    if float(rng.random()) >= fraud_rate:
+        return False, "legit"
+
+    if float(rng.random()) < stealth_rate:
+        return True, "stealth"
+
+    fraud_kinds = np.array(["burst", "high_amount", "risky_merchant", "device_mismatch", "country_mismatch", "new_card", "night_time", "risky_ip"], dtype=object)
+    fraud_weights = _normalize_weights(np.array([0.20, 0.18, 0.14, 0.13, 0.11, 0.10, 0.07, 0.07], dtype=float))
+    return True, str(rng.choice(fraud_kinds, p=fraud_weights))
+
 
 def _choose_gap_seconds(
     rng: np.random.Generator,
@@ -752,10 +768,8 @@ def _choose_gap_seconds(
         return int(rng.integers(15, max(20, max_gap)))
 
     if is_fraud:
-        # Longer gaps for non-burst fraud to overlap with legit velocity patterns
         return int(np.clip(rng.lognormal(mean=math.log(45 * 60), sigma=1.2), 120, 36 * 3600))
 
-    # Legit: occasional burst-like sessions (shopping sprees, bill payments)
     if float(rng.random()) < 0.12:
         return int(rng.integers(30, 600))
 
@@ -863,23 +877,30 @@ def _generate_row(
         if state.last_timestamp is not None
         else int(30 * 24 * 3600)
     )
-    seconds_since_last = max(1, abs(seconds_since_last))
+    user_transaction_count_5m = int(len(state.recent_timestamps_5m))
+    user_transaction_count_1h = int(len(state.recent_timestamps_1h))
+
+    amount_velocity_1h = round(float(sum(state.recent_amounts_1h)) + amount, 2)
 
     # Update state
     state.running_amount_sum += amount
     state.running_amount_count += 1
     state.last_timestamp = event_timestamp
+    state.last_amount = amount
+    state.transaction_count += 1
     state.recent_timestamps_5m.append(event_timestamp)
     state.recent_timestamps_1h.append(event_timestamp)
-    state.transaction_count += 1
+    state.recent_amounts_1h.append(amount)
 
     return {
         "transaction_id": _generate_transaction_id(),
+        "user_id": state.profile.user_id,
         "amount": round(amount, 2),
         "user_average_amount": round(user_average_amount, 2),
-        "user_transaction_count_5min": int(len(state.recent_timestamps_5m)) - 1,
-        "user_transaction_count_1hour": int(len(state.recent_timestamps_1h)) - 1,
+        "user_transaction_count_5min": user_transaction_count_5m,
+        "user_transaction_count_1hour": user_transaction_count_1h,
         "seconds_since_last_transaction": seconds_since_last,
+        "amount_velocity_1h": amount_velocity_1h,
         "merchant_risk_score": merchant_risk_score,
         "is_device_trusted": bool(is_device_trusted),
         "has_country_mismatch": bool(has_country_mismatch),
@@ -1004,7 +1025,7 @@ def compute_single_feature_auc(df: pd.DataFrame) -> dict[str, float]:
     from sklearn.metrics import roc_auc_score
 
     y = df["is_fraud"].astype(int)
-    feature_cols = [c for c in _OUTPUT_COLUMNS if c not in ("transaction_id", "is_fraud")]
+    feature_cols = [c for c in _OUTPUT_COLUMNS if c not in ("transaction_id", "user_id", "is_fraud")]
     aucs: dict[str, float] = {}
 
     for col in feature_cols:
@@ -1135,15 +1156,53 @@ def simulate(
     rows: list[dict[str, Any]] = []
 
     for _ in tqdm(range(row_count), desc="Generating transactions", unit="tx"):
-        selected = profiles[int(rng.choice(len(profiles), p=activity_weights))]
-        rows.append(_generate_row(
-            states[selected.user_id], rng,
+        selected_profile = profiles[int(rng.choice(len(profiles), p=activity_weights))]
+        user_state = states[selected_profile.user_id]
+
+        row = _generate_row(
+            user_state, rng,
             fraud_rate=fraud_rate, stealth_rate=stealth_rate,
             ip_registry=ip_registry, merchant_registry=merchant_registry,
             fraud_ring_indices=fraud_ring_indices,
             high_risk_merchant_indices=high_risk_merchant_indices,
             simulation_start=simulation_start,
-        ))
+        )
+
+        # Test-then-large: for certain fraud types, prepend a small probe transaction.
+        # The probe mimics a real-world pattern where fraudsters validate a stolen card
+        # with a tiny purchase before making a large one.
+        if (
+            row["is_fraud"]
+            and user_state.transaction_count >= 2
+            and float(rng.random()) < 0.22
+        ):
+            probe_amount = _clip_amount(
+                user_state.profile.baseline_amount * float(rng.uniform(0.03, 0.12))
+            )
+            probe_ts = user_state.last_timestamp or datetime(2026, 1, 1, 8, 0, 0)
+            probe_ts = probe_ts - timedelta(seconds=int(rng.integers(30, 180)))
+            rows.append({
+                "transaction_id": _generate_transaction_id(),
+                "user_id": selected_profile.user_id,
+                "amount": round(probe_amount, 2),
+                "user_average_amount": row["user_average_amount"],
+                "user_transaction_count_5min": max(0, row["user_transaction_count_5min"] - 1),
+                "user_transaction_count_1hour": max(0, row["user_transaction_count_1hour"] - 1),
+                "seconds_since_last_transaction": int(rng.integers(60, 600)),
+                "amount_velocity_1h": round(probe_amount, 2),
+                "merchant_risk_score": row["merchant_risk_score"],
+                "is_device_trusted": row["is_device_trusted"],
+                "has_country_mismatch": row["has_country_mismatch"],
+                "amount_to_average_ratio": round(
+                    probe_amount / max(1.0, row["user_average_amount"]), 4
+                ),
+                "hour_of_day": row["hour_of_day"],
+                "ip_risk_score": row["ip_risk_score"],
+                "card_age_days": row["card_age_days"],
+                "is_fraud": True,
+            })
+
+        rows.append(row)
 
     data = pd.DataFrame.from_records(rows, columns=_OUTPUT_COLUMNS)
 

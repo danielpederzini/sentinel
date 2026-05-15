@@ -4,9 +4,9 @@ import sys
 import logging
 
 import joblib
+import lightgbm as lgb
 import numpy as np
 import uvicorn
-import xgboost as xgb
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -31,34 +31,20 @@ MODELS_DIRECTORY = os.environ.get(
     os.path.join(os.path.dirname(__file__), "..", "training", "models"),
 )
 
-FEATURE_NAMES = [
-    "amount",
-    "user_average_amount",
-    "user_transaction_count_5min",
-    "user_transaction_count_1hour",
-    "seconds_since_last_transaction",
-    "merchant_risk_score",
-    "is_device_trusted",
-    "has_country_mismatch",
-    "amount_to_average_ratio",
-    "hour_of_day",
-    "ip_risk_score",
-    "card_age_days",
-]
-
 _state: dict = {}
 _error_logger = ErrorLogger()
 
 
-def _load_latest_model(model_directory: str) -> tuple[xgb.XGBClassifier, IsotonicRegression, dict, str]:
+def _load_latest_model(model_directory: str) -> tuple[lgb.LGBMClassifier, IsotonicRegression, dict, str, list[str]]:
     try:
-        candidates = glob.glob(os.path.join(model_directory, "xgb_*.joblib"))
+        candidates = glob.glob(os.path.join(model_directory, "lgbm_*.joblib"))
         if not candidates:
             raise ModelLoadException(f"No model bundles found in {model_directory}")
 
         latest_bundle_path = max(candidates, key=os.path.getmtime)
         bundle: dict = joblib.load(latest_bundle_path)
-        return bundle["model"], bundle["calibrator"], bundle["metrics"], bundle["version"]
+        feature_names: list[str] = bundle["feature_names"]
+        return bundle["model"], bundle["calibrator"], bundle["metrics"], bundle["version"], feature_names
     except ModelLoadException:
         raise
     except Exception as exception:
@@ -81,6 +67,7 @@ def _build_feature_values(request: FraudPredictionRequest) -> dict[str, float | 
         "user_transaction_count_5min": request.user_transaction_count_5min,
         "user_transaction_count_1hour": request.user_transaction_count_1hour,
         "seconds_since_last_transaction": request.seconds_since_last_transaction,
+        "amount_velocity_1h": request.amount_velocity_1h,
         "merchant_risk_score": request.merchant_risk_score,
         "is_device_trusted": request.is_device_trusted,
         "has_country_mismatch": request.has_country_mismatch,
@@ -94,19 +81,21 @@ def _build_feature_values(request: FraudPredictionRequest) -> dict[str, float | 
 def _build_explainability(
     request: FraudPredictionRequest,
     feature_vector: np.ndarray,
-    model: xgb.XGBClassifier,
+    model: lgb.LGBMClassifier,
+    feature_names: list[str],
     top_k: int = 5,
 ) -> dict:
-    feature_values = _build_feature_values(request)
-    dmatrix = xgb.DMatrix(feature_vector, feature_names=FEATURE_NAMES)
-    contributions = model.get_booster().predict(dmatrix, pred_contribs=True)[0]
+    base_values = _build_feature_values(request)
+    contributions = model.predict(feature_vector, pred_contrib=True)[0]
 
     feature_contributions = []
-    for index, feature_name in enumerate(FEATURE_NAMES):
+    for index, feature_name in enumerate(feature_names):
+        if index >= len(contributions):
+            break
         contribution = float(contributions[index])
         feature_contributions.append({
             "feature_name": feature_name,
-            "feature_value": feature_values[feature_name],
+            "feature_value": base_values.get(feature_name, None),
             "contribution": contribution,
             "direction": "INCREASED_FRAUD_RISK" if contribution >= 0 else "DECREASED_FRAUD_RISK",
         })
@@ -125,12 +114,13 @@ def _build_explainability(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
-        model, calibrator, metrics, version = _load_latest_model(MODELS_DIRECTORY)
+        model, calibrator, metrics, version, feature_names = _load_latest_model(MODELS_DIRECTORY)
         _state["model"] = model
         _state["calibrator"] = calibrator
         _state["threshold"] = metrics["threshold"]
         _state["version"] = version
-        print(f"Loaded model version {version} with threshold {_state['threshold']:.4f}")
+        _state["feature_names"] = feature_names
+        print(f"Loaded LightGBM model version {version} with threshold {_state['threshold']:.4f}")
     except ModelLoadException as exception:
         _error_logger.error("Model loading failed during startup", exception)
         raise
@@ -211,22 +201,11 @@ def score(request: FraudPredictionRequest) -> FraudPredictionResponse:
         if "model" not in _state:
             raise PredictionException("Model is not loaded, service is unavailable")
 
-        feature_vector = np.array([[
-            request.amount,
-            request.user_average_amount,
-            request.user_transaction_count_5min,
-            request.user_transaction_count_1hour,
-            request.seconds_since_last_transaction,
-            request.merchant_risk_score,
-            int(request.is_device_trusted),
-            int(request.has_country_mismatch),
-            request.amount_to_average_ratio,
-            request.hour_of_day,
-            request.ip_risk_score,
-            request.card_age_days,
-        ]])
+        feature_names: list[str] = _state["feature_names"]
+        feature_values = _build_feature_values(request)
+        feature_vector = np.array([[float(feature_values.get(f, 0.0)) for f in feature_names]])
 
-        model: xgb.XGBClassifier = _state["model"]
+        model: lgb.LGBMClassifier = _state["model"]
         raw_probability: float = float(model.predict_proba(feature_vector)[0, 1])
 
         calibrator: IsotonicRegression | None = _state["calibrator"]
@@ -241,7 +220,9 @@ def score(request: FraudPredictionRequest) -> FraudPredictionResponse:
             fraud_probability=fraud_probability,
             risk_level=_find_risk_level(fraud_probability, _state["threshold"]),
             model_version=_state["version"],
-            explainability=_build_explainability(request, feature_vector, model),
+            explainability=_build_explainability(
+                request, feature_vector, model, feature_names,
+            ),
         )
         return response
     except PredictionException:
