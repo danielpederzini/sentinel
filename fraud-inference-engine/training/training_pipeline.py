@@ -315,22 +315,14 @@ def main() -> None:
     parser.add_argument("data_file", type=str, help="Path to the CSV file containing the training data.")
     parser.add_argument("model_output_directory", type=str, help="Path to save the trained model.")
     parser.add_argument("model_version", type=str, help="Version of the model.")
-    parser.add_argument("--n-estimators", type=int, default=5_000,
-                        help="Maximum number of boosting rounds (default: 5000).")
-    parser.add_argument("--max-depth", type=int, default=7,
-                        help="Maximum tree depth (default: 7).")
-    parser.add_argument("--learning-rate", type=float, default=0.05,
-                        help="Boosting learning rate (default: 0.05).")
-    parser.add_argument("--early-stopping-rounds", type=int, default=100,
-                        help="Stop if no improvement after this many rounds (default: 100).")
-    parser.add_argument("--beta", type=float, default=2.0,
-                        help="F-beta threshold optimization (default: 2.0).")
-    parser.add_argument("--device", type=str, default="cpu",
-                        help="Device for training: 'cpu' or 'gpu' (default: cpu).")
-    parser.add_argument("--n-trials", type=int, default=50,
-                        help="Number of Optuna hyperparameter search trials (default: 50).")
-    parser.add_argument("--skip-tuning", action="store_true",
-                        help="Skip Optuna tuning, use default/specified hyperparameters.")
+    parser.add_argument("--n-estimators", type=int, default=5_000,help="Maximum number of boosting rounds (default: 5000).")
+    parser.add_argument("--max-depth", type=int, default=7, help="Maximum tree depth (default: 7).")
+    parser.add_argument("--learning-rate", type=float, default=0.05, help="Boosting learning rate (default: 0.05).")
+    parser.add_argument("--early-stopping-rounds", type=int, default=100, help="Stop if no improvement after this many rounds (default: 100).")
+    parser.add_argument("--beta", type=float, default=2.0, help="F-beta threshold optimization (default: 2.0).")
+    parser.add_argument("--device", type=str, default="gpu", help="Device for training: 'cpu' or 'gpu' (default: gpu).")
+    parser.add_argument("--n-trials", type=int, default=50, help="Number of Optuna hyperparameter search trials (default: 50).")
+    parser.add_argument("--skip-tuning", action="store_true", help="Skip Optuna tuning, use default/specified hyperparameters.")
     args = parser.parse_args()
 
     train_model(
