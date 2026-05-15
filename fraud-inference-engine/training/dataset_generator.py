@@ -1025,7 +1025,7 @@ def compute_single_feature_auc(df: pd.DataFrame) -> dict[str, float]:
     from sklearn.metrics import roc_auc_score
 
     y = df["is_fraud"].astype(int)
-    feature_cols = [c for c in _OUTPUT_COLUMNS if c not in ("transaction_id", "is_fraud")]
+    feature_cols = [c for c in _OUTPUT_COLUMNS if c not in ("transaction_id", "user_id", "is_fraud")]
     aucs: dict[str, float] = {}
 
     for col in feature_cols:
