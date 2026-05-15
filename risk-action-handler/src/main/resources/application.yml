@@ -5,7 +5,7 @@ spring:
   application:
     name: risk-action-handler
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/feature_manager}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/sentinel}
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:admin}
     driver-class-name: org.postgresql.Driver

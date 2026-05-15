@@ -80,13 +80,14 @@ services:
     ports:
       - "5433:5432"
     environment:
-      POSTGRES_DB: feature_manager
+      POSTGRES_DB: sentinel
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: admin
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d feature_manager"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d sentinel"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -115,9 +116,9 @@ services:
     ports:
       - "8082:8082"
     environment:
-      DB_URL: jdbc:postgresql://postgres:5432/feature_manager
-      DB_USERNAME: postgres
-      DB_PASSWORD: admin
+      DB_URL: jdbc:postgresql://postgres:5432/sentinel
+      DB_USERNAME: feature_manager_readonly
+      DB_PASSWORD: readonly
       REDIS_HOST: redis
       REDIS_PORT: 6379
 
@@ -162,7 +163,7 @@ services:
       EMAIL_USERNAME: ${EMAIL_USERNAME}
       EMAIL_PASSWORD: ${EMAIL_PASSWORD}
       DESTINATION_EMAIL: ${DESTINATION_EMAIL}
-      DB_URL: jdbc:postgresql://postgres:5432/feature_manager
+      DB_URL: jdbc:postgresql://postgres:5432/sentinel
       DB_USERNAME: postgres
       DB_PASSWORD: admin
 
