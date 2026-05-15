@@ -21,7 +21,8 @@ public record FraudFeaturesMessage(
         float amountToAverageRatio,
         int hourOfDay,
         float ipRiskScore,
-        long cardAgeDays
+        long cardAgeDays,
+        BigDecimal amountVelocity1Hour
 ) {
     public static FraudFeaturesMessage from(FraudFeatureResponse fraudFeatureResponse) {
         return FraudFeaturesMessage.builder()
@@ -36,6 +37,7 @@ public record FraudFeaturesMessage(
                 .hourOfDay(fraudFeatureResponse.hourOfDay())
                 .ipRiskScore(fraudFeatureResponse.ipRiskScore())
                 .cardAgeDays(fraudFeatureResponse.cardAgeDays())
+                .amountVelocity1Hour(fraudFeatureResponse.amountVelocity1Hour())
                 .build();
     }
 }

@@ -15,6 +15,7 @@ public record FraudFeatureResponse(
 		float amountToAverageRatio,
 		int hourOfDay,
 		float ipRiskScore,
-		long cardAgeDays
+		long cardAgeDays,
+		BigDecimal amountVelocity1Hour
 ) {
 }

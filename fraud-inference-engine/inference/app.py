@@ -44,6 +44,7 @@ FEATURE_NAMES = [
     "hour_of_day",
     "ip_risk_score",
     "card_age_days",
+    "amount_velocity_1hour",
 ]
 
 _state: dict = {}
@@ -88,6 +89,7 @@ def _build_feature_values(request: FraudPredictionRequest) -> dict[str, float | 
         "hour_of_day": request.hour_of_day,
         "ip_risk_score": request.ip_risk_score,
         "card_age_days": request.card_age_days,
+        "amount_velocity_1hour": request.amount_velocity_1hour,
     }
 
 

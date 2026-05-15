@@ -15,7 +15,8 @@ public record FraudPredictionRequest(
 		@JsonProperty("amount_to_average_ratio") float amountToAverageRatio,
 		@JsonProperty("hour_of_day") int hourOfDay,
 		@JsonProperty("ip_risk_score") float ipRiskScore,
-		@JsonProperty("card_age_days") long cardAgeDays
+		@JsonProperty("card_age_days") long cardAgeDays,
+		@JsonProperty("amount_velocity_1hour") double amountVelocity1Hour
 ) {
 	public static FraudPredictionRequest from(FraudFeatureResponse features) {
 		return new FraudPredictionRequest(
@@ -31,7 +32,8 @@ public record FraudPredictionRequest(
 				features.amountToAverageRatio(),
 				features.hourOfDay(),
 				features.ipRiskScore(),
-				features.cardAgeDays()
+				features.cardAgeDays(),
+				features.amountVelocity1Hour().doubleValue()
 		);
 	}
 }

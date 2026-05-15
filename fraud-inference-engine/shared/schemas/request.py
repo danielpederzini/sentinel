@@ -14,3 +14,4 @@ class FraudPredictionRequest(BaseModel):
     hour_of_day: int = Field(ge=0, le=23)
     ip_risk_score: float = Field(ge=0, le=1)
     card_age_days: int = Field(ge=0)
+    amount_velocity_1hour: float = Field(ge=0, default=0.0)

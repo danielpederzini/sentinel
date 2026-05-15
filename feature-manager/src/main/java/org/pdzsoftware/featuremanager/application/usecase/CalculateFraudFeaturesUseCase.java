@@ -51,8 +51,9 @@ public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureReques
             long secondsSinceLastTransaction = featureCacheService.getSecondsSinceLastTransaction(input.userId());
             long transactionCount5Min = featureCacheService.getUserTransactionCount5Min(input.userId());
             long transactionCount1Hour = featureCacheService.getUserTransactionCount1Hour(input.userId());
+            BigDecimal amountVelocity1Hour = featureCacheService.getAmountVelocity1Hour(input.userId());
 
-            featureCacheService.recordUserTransaction(input.userId(), input.transactionId());
+            featureCacheService.recordUserTransaction(input.userId(), input.transactionId(), input.amount());
 
             FraudFeatureResponse fraudFeatureResponse = FraudFeatureResponse.builder()
                     .transactionId(input.transactionId())
@@ -68,6 +69,7 @@ public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureReques
                     .hourOfDay(hourOfDay)
                     .ipRiskScore(ipRiskScore)
                     .cardAgeDays(cardAgeDays)
+                    .amountVelocity1Hour(amountVelocity1Hour)
                     .build();
 
             log.info("Calculated fraud features for transaction {}", input.transactionId());

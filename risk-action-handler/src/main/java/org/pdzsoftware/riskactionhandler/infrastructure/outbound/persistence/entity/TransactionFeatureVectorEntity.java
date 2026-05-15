@@ -66,6 +66,9 @@ public class TransactionFeatureVectorEntity {
     @Column(nullable = false)
     private long cardAgeDays;
 
+    @Column(nullable = false)
+    private BigDecimal amountVelocity1Hour;
+
     @MapsId
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "transaction_id")
@@ -88,6 +91,7 @@ public class TransactionFeatureVectorEntity {
                 .hourOfDay(featuresMessage.hourOfDay())
                 .ipRiskScore(featuresMessage.ipRiskScore())
                 .cardAgeDays(featuresMessage.cardAgeDays())
+                .amountVelocity1Hour(featuresMessage.amountVelocity1Hour())
                 .build();
     }
 }
