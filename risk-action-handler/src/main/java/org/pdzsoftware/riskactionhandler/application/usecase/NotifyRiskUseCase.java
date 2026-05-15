@@ -28,8 +28,12 @@ public class NotifyRiskUseCase implements VoidUseCase<TransactionScoredMessage> 
         String emailContent = EmailContentBuilder.buildFraudAlertEmail(input, fraudExplanation);
         String emailSubject = String.format("Suspected Fraud: %s", transactionId);
 
-        NotificationOutboxEntity outboxEntry = NotificationOutboxEntity.builder()
-                .transaction(TransactionEntity.builder().id(transactionId).build())
+        TransactionEntity transactionEntity = TransactionEntity.builder()
+                .id(transactionId)
+                .build();
+
+        NotificationOutboxEntity outboxEntity = NotificationOutboxEntity.builder()
+                .transaction(transactionEntity)
                 .emailSubject(emailSubject)
                 .emailContent(emailContent)
                 .status(NotificationStatus.PENDING)
@@ -37,7 +41,7 @@ public class NotifyRiskUseCase implements VoidUseCase<TransactionScoredMessage> 
                 .attemptCount(0)
                 .build();
 
-        notificationOutboxService.save(outboxEntry);
+        notificationOutboxService.save(outboxEntity);
         log.info("Queued fraud alert notification for transaction {}", transactionId);
     }
 }
