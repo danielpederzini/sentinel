@@ -4,7 +4,7 @@ from .enums import RiskLevel
 
 class FeatureContribution(BaseModel):
     feature_name: str
-    feature_value: float | int | bool
+    feature_value: float | int | bool | None
     contribution: float
     direction: str
 
