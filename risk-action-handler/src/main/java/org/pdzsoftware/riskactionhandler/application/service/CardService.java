@@ -1,7 +1,7 @@
 package org.pdzsoftware.riskactionhandler.application.service;
 
 import lombok.RequiredArgsConstructor;
-import org.pdzsoftware.riskactionhandler.infrastructure.outbound.persistence.repostiory.CardRepository;
+import org.pdzsoftware.riskactionhandler.infrastructure.outbound.persistence.repository.CardRepository;
 import org.springframework.stereotype.Service;
 
 @Service
