@@ -15,7 +15,20 @@ public record FraudPredictionRequest(
 		@JsonProperty("amount_to_average_ratio") float amountToAverageRatio,
 		@JsonProperty("hour_of_day") int hourOfDay,
 		@JsonProperty("ip_risk_score") float ipRiskScore,
-		@JsonProperty("card_age_days") long cardAgeDays
+		@JsonProperty("card_age_days") long cardAgeDays,
+		@JsonProperty("amount_velocity_1hour") double amountVelocity1Hour,
+		@JsonProperty("log_amount") double logAmount,
+		@JsonProperty("log_seconds_since") double logSecondsSinceLastTransaction,
+		@JsonProperty("log_velocity_1hour") double logVelocity1Hour,
+		@JsonProperty("amount_x_merchant_risk") double amountTimesMerchantRisk,
+		@JsonProperty("risk_score_product") double riskScoreProduct,
+		@JsonProperty("ip_device_risk") double ipDeviceRisk,
+		@JsonProperty("country_ip_risk") double countryIpRisk,
+		@JsonProperty("velocity_amount_interaction") double velocityAmountInteraction,
+		@JsonProperty("recency_velocity") double recencyVelocity,
+		@JsonProperty("amount_deviation") double amountDeviation,
+		@JsonProperty("is_night") boolean isNight,
+		@JsonProperty("velocity_intensity") double velocityIntensity
 ) {
 	public static FraudPredictionRequest from(FraudFeatureResponse features) {
 		return new FraudPredictionRequest(
@@ -31,7 +44,20 @@ public record FraudPredictionRequest(
 				features.amountToAverageRatio(),
 				features.hourOfDay(),
 				features.ipRiskScore(),
-				features.cardAgeDays()
+				features.cardAgeDays(),
+				features.amountVelocity1Hour().doubleValue(),
+				features.logAmount(),
+				features.logSecondsSinceLastTransaction(),
+				features.logVelocity1Hour(),
+				features.amountTimesMerchantRisk(),
+				features.riskScoreProduct(),
+				features.ipDeviceRisk(),
+				features.countryIpRisk(),
+				features.velocityAmountInteraction(),
+				features.recencyVelocity(),
+				features.amountDeviation(),
+				features.isNight(),
+				features.velocityIntensity()
 		);
 	}
 }

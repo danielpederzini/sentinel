@@ -3,7 +3,7 @@ package org.pdzsoftware.riskactionhandler.application.service;
 import lombok.RequiredArgsConstructor;
 import org.pdzsoftware.riskactionhandler.domain.enums.NotificationStatus;
 import org.pdzsoftware.riskactionhandler.infrastructure.outbound.persistence.entity.NotificationOutboxEntity;
-import org.pdzsoftware.riskactionhandler.infrastructure.outbound.persistence.repostiory.NotificationOutboxRepository;
+import org.pdzsoftware.riskactionhandler.infrastructure.outbound.persistence.repository.NotificationOutboxRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;

@@ -57,8 +57,5 @@ public class TransactionEntity {
     private CardEntity card;
 
     @OneToOne(mappedBy = "transaction", cascade = CascadeType.ALL, orphanRemoval = true)
-    private TransactionFeatureVectorEntity featureVector;
-
-    @OneToOne(mappedBy = "transaction", cascade = CascadeType.ALL, orphanRemoval = true)
     private TransactionPredictionEntity prediction;
 }

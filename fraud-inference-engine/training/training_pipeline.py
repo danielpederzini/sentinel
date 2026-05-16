@@ -30,7 +30,7 @@ BASE_FEATURES = [
     "user_transaction_count_5min",
     "user_transaction_count_1hour",
     "seconds_since_last_transaction",
-    "amount_velocity_1h",
+    "amount_velocity_1hour",
     "merchant_risk_score",
     "is_device_trusted",
     "has_country_mismatch",
@@ -52,11 +52,11 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     # Log transforms for skewed features
     out["log_amount"] = np.log1p(out["amount"])
     out["log_seconds_since"] = np.log1p(out["seconds_since_last_transaction"])
-    out["log_velocity_1h"] = np.log1p(out["amount_velocity_1h"])
+    out["log_velocity_1hour"] = np.log1p(out["amount_velocity_1hour"])
 
-    # Interaction: amount × risk scores
-    out["amount_x_merchant_risk"] = out["amount"] * out["merchant_risk_score"]
-    out["amount_x_ip_risk"] = out["amount"] * out["ip_risk_score"]
+    # Interaction: amount × risk scores (capped at 99th percentile to limit outlier influence)
+    raw_amount_x_merchant_risk = out["amount"] * out["merchant_risk_score"]
+    out["amount_x_merchant_risk"] = raw_amount_x_merchant_risk.clip(upper=raw_amount_x_merchant_risk.quantile(0.99))
     out["risk_score_product"] = out["merchant_risk_score"] * out["ip_risk_score"]
 
     # Interaction: device/country with risk
@@ -64,16 +64,12 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     out["ip_device_risk"] = out["ip_risk_score"] * device_untrusted
     out["country_ip_risk"] = out["has_country_mismatch"].astype(float) * out["ip_risk_score"]
 
-    # Velocity × amount interactions
-    out["velocity_amount_interaction"] = (
-        out["user_transaction_count_1hour"] * out["amount_to_average_ratio"]
-    )
+    # Velocity × amount interactions (capped to limit outlier influence)
+    raw_velocity_amount = out["user_transaction_count_1hour"] * out["amount_to_average_ratio"]
+    out["velocity_amount_interaction"] = raw_velocity_amount.clip(upper=raw_velocity_amount.quantile(0.99))
     out["recency_velocity"] = (
         out["user_transaction_count_5min"] / np.clip(out["seconds_since_last_transaction"], 1, None)
     )
-
-    # Card age × amount ratio (new card with high spending)
-    out["card_age_x_amount_ratio"] = out["card_age_days"] * out["amount_to_average_ratio"]
 
     # Amount deviation from user average
     out["amount_deviation"] = np.abs(out["amount"] - out["user_average_amount"]) / np.clip(
@@ -82,10 +78,9 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
 
     # Time-of-day features
     out["is_night"] = ((out["hour_of_day"] < 6) | (out["hour_of_day"] >= 22)).astype(float)
-    out["night_amount_ratio"] = out["is_night"] * out["amount_to_average_ratio"]
 
     # Velocity intensity (amount per recent transaction)
-    out["velocity_intensity"] = out["amount_velocity_1h"] / np.clip(
+    out["velocity_intensity"] = out["amount_velocity_1hour"] / np.clip(
         out["user_transaction_count_1hour"], 1, None
     )
 

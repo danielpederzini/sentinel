@@ -21,7 +21,20 @@ public record FraudFeaturesMessage(
         float amountToAverageRatio,
         int hourOfDay,
         float ipRiskScore,
-        long cardAgeDays
+        long cardAgeDays,
+        BigDecimal amountVelocity1Hour,
+        double logAmount,
+        double logSecondsSinceLastTransaction,
+        double logVelocity1Hour,
+        double amountTimesMerchantRisk,
+        double riskScoreProduct,
+        double ipDeviceRisk,
+        double countryIpRisk,
+        double velocityAmountInteraction,
+        double recencyVelocity,
+        double amountDeviation,
+        boolean isNight,
+        double velocityIntensity
 ) {
     public static FraudFeaturesMessage from(FraudFeatureResponse fraudFeatureResponse) {
         return FraudFeaturesMessage.builder()
@@ -36,6 +49,19 @@ public record FraudFeaturesMessage(
                 .hourOfDay(fraudFeatureResponse.hourOfDay())
                 .ipRiskScore(fraudFeatureResponse.ipRiskScore())
                 .cardAgeDays(fraudFeatureResponse.cardAgeDays())
+                .amountVelocity1Hour(fraudFeatureResponse.amountVelocity1Hour())
+                .logAmount(fraudFeatureResponse.logAmount())
+                .logSecondsSinceLastTransaction(fraudFeatureResponse.logSecondsSinceLastTransaction())
+                .logVelocity1Hour(fraudFeatureResponse.logVelocity1Hour())
+                .amountTimesMerchantRisk(fraudFeatureResponse.amountTimesMerchantRisk())
+                .riskScoreProduct(fraudFeatureResponse.riskScoreProduct())
+                .ipDeviceRisk(fraudFeatureResponse.ipDeviceRisk())
+                .countryIpRisk(fraudFeatureResponse.countryIpRisk())
+                .velocityAmountInteraction(fraudFeatureResponse.velocityAmountInteraction())
+                .recencyVelocity(fraudFeatureResponse.recencyVelocity())
+                .amountDeviation(fraudFeatureResponse.amountDeviation())
+                .isNight(fraudFeatureResponse.isNight())
+                .velocityIntensity(fraudFeatureResponse.velocityIntensity())
                 .build();
     }
 }

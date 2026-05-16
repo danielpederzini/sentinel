@@ -69,6 +69,24 @@ public class EmailContentBuilder {
 				    <tr><td style="padding: 4px 12px;"><strong>Country Mismatch</strong></td><td>%s</td></tr>
 				    <tr><td style="padding: 4px 12px;"><strong>Card Age (days)</strong></td><td>%d</td></tr>
 				    <tr><td style="padding: 4px 12px;"><strong>Hour of Day</strong></td><td>%d</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Amount Velocity (1 Hour)</strong></td><td>$%s</td></tr>
+				  </table>
+				  <hr>
+
+				  <h2>Engineered Features</h2>
+				  <table style="border-collapse: collapse; width: 100%%;">
+				    <tr><td style="padding: 4px 12px;"><strong>Log Amount</strong></td><td>%.4f</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Log Seconds Since Last Transaction</strong></td><td>%.4f</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Log Velocity (1 Hour)</strong></td><td>%.4f</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Amount &times; Merchant Risk</strong></td><td>%.4f</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Risk Score Product</strong></td><td>%.4f</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>IP Device Risk</strong></td><td>%.4f</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Country IP Risk</strong></td><td>%.4f</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Velocity Amount Interaction</strong></td><td>%.4f</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Recency Velocity</strong></td><td>%.4f</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Amount Deviation</strong></td><td>%.4f</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Is Night</strong></td><td>%s</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Velocity Intensity</strong></td><td>%.4f</td></tr>
 				  </table>
 				  <hr>
 
@@ -113,6 +131,19 @@ public class EmailContentBuilder {
 				features.hasCountryMismatch(),
 				features.cardAgeDays(),
 				features.hourOfDay(),
+				features.amountVelocity1Hour(),
+				features.logAmount(),
+				features.logSecondsSinceLastTransaction(),
+				features.logVelocity1Hour(),
+				features.amountTimesMerchantRisk(),
+				features.riskScoreProduct(),
+				features.ipDeviceRisk(),
+				features.countryIpRisk(),
+				features.velocityAmountInteraction(),
+				features.recencyVelocity(),
+				features.amountDeviation(),
+				features.isNight(),
+				features.velocityIntensity(),
 				contributingFeaturesRows,
 				llmExplanation
 		);

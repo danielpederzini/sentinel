@@ -67,7 +67,7 @@ def _build_feature_values(request: FraudPredictionRequest) -> dict[str, float | 
         "user_transaction_count_5min": request.user_transaction_count_5min,
         "user_transaction_count_1hour": request.user_transaction_count_1hour,
         "seconds_since_last_transaction": request.seconds_since_last_transaction,
-        "amount_velocity_1h": request.amount_velocity_1h,
+        "amount_velocity_1hour": request.amount_velocity_1hour,
         "merchant_risk_score": request.merchant_risk_score,
         "is_device_trusted": request.is_device_trusted,
         "has_country_mismatch": request.has_country_mismatch,
@@ -75,6 +75,18 @@ def _build_feature_values(request: FraudPredictionRequest) -> dict[str, float | 
         "hour_of_day": request.hour_of_day,
         "ip_risk_score": request.ip_risk_score,
         "card_age_days": request.card_age_days,
+        "log_amount": request.log_amount,
+        "log_seconds_since": request.log_seconds_since,
+        "log_velocity_1hour": request.log_velocity_1hour,
+        "amount_x_merchant_risk": request.amount_x_merchant_risk,
+        "risk_score_product": request.risk_score_product,
+        "ip_device_risk": request.ip_device_risk,
+        "country_ip_risk": request.country_ip_risk,
+        "velocity_amount_interaction": request.velocity_amount_interaction,
+        "recency_velocity": request.recency_velocity,
+        "amount_deviation": request.amount_deviation,
+        "is_night": request.is_night,
+        "velocity_intensity": request.velocity_intensity,
     }
 
 

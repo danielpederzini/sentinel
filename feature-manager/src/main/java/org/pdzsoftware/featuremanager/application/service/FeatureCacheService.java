@@ -9,6 +9,8 @@ import org.pdzsoftware.featuremanager.domain.exception.CacheUpdateException;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -17,6 +19,7 @@ import java.util.UUID;
 public class FeatureCacheService {
     private static final String USER_TRANSACTIONS_KEY_PREFIX = "user:transactions:";
     private static final String USER_LAST_TRANSACTION_KEY_PREFIX = "user:last-transaction:";
+    private static final String USER_TRANSACTION_AMOUNTS_KEY_PREFIX = "user:transaction-amounts:";
     private static final long FIVE_MINUTES_IN_SECONDS = 5L * 60L;
     private static final long ONE_HOUR_IN_SECONDS = 60L * 60L;
     private static final long EPOCH_MILLIS_THRESHOLD = 10_000_000_000L;
@@ -25,16 +28,20 @@ public class FeatureCacheService {
     private final RedisTemplate<String, String> redisTemplate;
     private final RedisProperties redisProperties;
 
-    public void recordUserTransaction(String userId, String transactionId) {
-        recordUserTransaction(userId, transactionId, System.currentTimeMillis());
+    public void recordUserTransaction(String userId, String transactionId, BigDecimal amount) {
+        recordUserTransaction(userId, transactionId, amount, System.currentTimeMillis());
     }
 
-    public void recordUserTransaction(String userId, String transactionId, long timestamp) {
+    public void recordUserTransaction(String userId, String transactionId, BigDecimal amount, long timestamp) {
         try {
             long timestampInSeconds = normalizeToEpochSeconds(timestamp);
             String userTransactionKey = USER_TRANSACTIONS_KEY_PREFIX + userId;
             redisTemplate.opsForZSet().add(userTransactionKey, buildTransactionMember(transactionId), timestampInSeconds);
             redisTemplate.expire(userTransactionKey, redisProperties.getTimeToLast());
+
+            String amountsKey = USER_TRANSACTION_AMOUNTS_KEY_PREFIX + userId;
+            redisTemplate.opsForZSet().add(amountsKey, buildAmountMember(transactionId, amount), timestampInSeconds);
+            redisTemplate.expire(amountsKey, redisProperties.getTimeToLast());
 
             String lastTransactionKey = USER_LAST_TRANSACTION_KEY_PREFIX + userId;
             redisTemplate.opsForValue().set(lastTransactionKey, String.valueOf(timestampInSeconds), redisProperties.getTimeToLast());
@@ -42,7 +49,6 @@ public class FeatureCacheService {
             throw new CacheUpdateException(String.format(
                     "Failed to record transaction %s for user %s", transactionId, userId), exception);
         }
-
     }
 
     public long getUserTransactionCount5Min(String userId) {
@@ -87,13 +93,40 @@ public class FeatureCacheService {
         }
     }
 
+    public BigDecimal getAmountVelocity1Hour(String userId) {
+        try {
+            String amountsKey = USER_TRANSACTION_AMOUNTS_KEY_PREFIX + userId;
+            long nowInSeconds = System.currentTimeMillis() / ONE_SECOND_IN_MILLIS;
+            long windowStart = nowInSeconds - ONE_HOUR_IN_SECONDS;
+
+            Set<String> members = redisTemplate.opsForZSet().rangeByScore(amountsKey, windowStart, nowInSeconds);
+            if (members == null || members.isEmpty()) {
+                return BigDecimal.ZERO;
+            }
+
+            BigDecimal total = BigDecimal.ZERO;
+            for (String member : members) {
+                int separatorIndex = member.lastIndexOf(':');
+                if (separatorIndex >= 0 && separatorIndex < member.length() - 1) {
+                    total = total.add(new BigDecimal(member.substring(separatorIndex + 1)));
+                }
+            }
+            return total;
+        } catch (IllegalArgumentException exception) {
+            throw new CacheReadException(String.format(
+                    "Failed to retrieve amount velocity for user %s", userId), exception);
+        }
+    }
+
     public void cleanupOldTransactions(String userId) {
         try {
             String userTransactionKey = USER_TRANSACTIONS_KEY_PREFIX + userId;
+            String amountsKey = USER_TRANSACTION_AMOUNTS_KEY_PREFIX + userId;
             long nowInSeconds = System.currentTimeMillis() / ONE_SECOND_IN_MILLIS;
             long cutoffTime = nowInSeconds - ONE_HOUR_IN_SECONDS;
 
             redisTemplate.opsForZSet().removeRangeByScore(userTransactionKey, 0, cutoffTime);
+            redisTemplate.opsForZSet().removeRangeByScore(amountsKey, 0, cutoffTime);
         } catch (IllegalArgumentException exception) {
             throw new CacheUpdateException(String.format(
                     "Failed to clean up old transactions for user %s", userId), exception);
@@ -104,6 +137,12 @@ public class FeatureCacheService {
         boolean isTransactionIdMissing = StringUtils.isBlank(transactionId);
         String memberPrefix = isTransactionIdMissing ? UUID.randomUUID().toString() : transactionId;
         return String.format("%s:%s", memberPrefix, System.currentTimeMillis());
+    }
+
+    private String buildAmountMember(String transactionId, BigDecimal amount) {
+        boolean isTransactionIdMissing = StringUtils.isBlank(transactionId);
+        String memberPrefix = isTransactionIdMissing ? UUID.randomUUID().toString() : transactionId;
+        return String.format("%s:%s", memberPrefix, amount.toPlainString());
     }
 
     private long normalizeToEpochSeconds(long timestamp) {

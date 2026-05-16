@@ -62,6 +62,19 @@ create table if not exists transaction_feature_vectors (
     hour_of_day integer not null,
     ip_risk_score real not null check (ip_risk_score >= 0 and ip_risk_score <= 1),
     card_age_days bigint not null,
+    amount_velocity1_hour numeric(19, 2) not null default 0,
+    log_amount double precision not null default 0,
+    log_seconds_since_last_transaction double precision not null default 0,
+    log_velocity1_hour double precision not null default 0,
+    amount_times_merchant_risk double precision not null default 0,
+    risk_score_product double precision not null default 0,
+    ip_device_risk double precision not null default 0,
+    country_ip_risk double precision not null default 0,
+    velocity_amount_interaction double precision not null default 0,
+    recency_velocity double precision not null default 0,
+    amount_deviation double precision not null default 0,
+    is_night boolean not null default false,
+    velocity_intensity double precision not null default 0,
     constraint fk_tfv_transaction foreign key (transaction_id) references transactions (id)
 );
 
@@ -72,6 +85,22 @@ create table if not exists transaction_predictions (
     model_version varchar(64) not null,
     constraint fk_tp_transaction foreign key (transaction_id) references transactions (id)
 );
+
+create table if not exists notification_outbox (
+    id bigint generated always as identity primary key,
+    transaction_id varchar(64) not null,
+    email_subject varchar(512) not null,
+    email_content text not null,
+    status varchar(16) not null default 'PENDING',
+    created_at timestamp not null default now(),
+    sent_at timestamp,
+    failure_reason text,
+    attempt_count integer not null default 0,
+    constraint fk_notification_outbox_transaction foreign key (transaction_id) references transactions (id)
+);
+
+create index if not exists idx_notification_outbox_status on notification_outbox (status);
+create index if not exists idx_notification_outbox_transaction_id on notification_outbox (transaction_id);
 
 insert into users (id, email, birth_date, home_country_code, creation_date_time)
 values
@@ -231,15 +260,28 @@ insert into transaction_feature_vectors (
     amount_to_average_ratio,
     hour_of_day,
     ip_risk_score,
-    card_age_days
+    card_age_days,
+    amount_velocity1_hour,
+    log_amount,
+    log_seconds_since_last_transaction,
+    log_velocity1_hour,
+    amount_times_merchant_risk,
+    risk_score_product,
+    ip_device_risk,
+    country_ip_risk,
+    velocity_amount_interaction,
+    recency_velocity,
+    amount_deviation,
+    is_night,
+    velocity_intensity
 )
 values
-    ('tx-001', 120.50, 102.30, 2, 2, 180, 0.12, true,  false, 1.17,  9, 0.05, 221),
-    ('tx-002', 85.90,  102.30, 2, 2, 120, 0.12, true,  false, 0.84,  9, 0.04, 221),
-    ('tx-003', 430.00, 214.50, 1, 3, 300, 0.73, true,  false, 2.00, 10, 0.22, 146),
-    ('tx-004', 39.99,  214.50, 1, 3, 90,  0.41, true,  false, 0.19, 10, 0.08, 146),
-    ('tx-005', 210.75, 205.32, 1, 2, 240, 0.41, false, true, 1.03, 11, 0.15,  98),
-    ('tx-006', 199.90, 205.32, 1, 2, 60,  0.73, false, true, 0.97, 11, 0.19,  98)
+    ('tx-001', 120.50, 102.30, 2, 2, 180, 0.12, true,  false, 1.17,  9, 0.05, 221, 206.40, 4.80, 5.20, 5.33, 14.46, 0.006, 0.0, 0.0, 2.34, 0.011, 0.18, false, 103.20),
+    ('tx-002', 85.90,  102.30, 2, 2, 120, 0.12, true,  false, 0.84,  9, 0.04, 221, 206.40, 4.47, 4.80, 5.33, 10.31, 0.005, 0.0, 0.0, 1.68, 0.017, 0.16, false, 103.20),
+    ('tx-003', 430.00, 214.50, 1, 3, 300, 0.73, true,  false, 2.00, 10, 0.22, 146, 430.00, 6.07, 5.71, 6.07, 313.90, 0.161, 0.0, 0.0, 6.00, 0.003, 1.00, false, 143.33),
+    ('tx-004', 39.99,  214.50, 1, 3, 90,  0.41, true,  false, 0.19, 10, 0.08, 146, 469.99, 3.71, 4.51, 6.16, 16.40, 0.033, 0.0, 0.0, 0.57, 0.011, 0.81, false, 156.66),
+    ('tx-005', 210.75, 205.32, 1, 2, 240, 0.41, false, true,  1.03, 11, 0.15,  98, 210.75, 5.35, 5.49, 5.35, 86.41, 0.062, 0.15, 0.15, 2.06, 0.004, 0.03, false, 105.38),
+    ('tx-006', 199.90, 205.32, 1, 2, 60,  0.73, false, true,  0.97, 11, 0.19,  98, 410.65, 5.30, 4.11, 6.02, 145.93, 0.139, 0.19, 0.19, 1.94, 0.017, 0.03, false, 205.33)
 on conflict (transaction_id) do nothing;
 
 insert into transaction_predictions (transaction_id, fraud_probability, risk_level, model_version)

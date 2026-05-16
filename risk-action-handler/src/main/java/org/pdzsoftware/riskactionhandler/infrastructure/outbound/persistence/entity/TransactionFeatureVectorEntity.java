@@ -66,6 +66,45 @@ public class TransactionFeatureVectorEntity {
     @Column(nullable = false)
     private long cardAgeDays;
 
+    @Column(nullable = false)
+    private BigDecimal amountVelocity1Hour;
+
+    @Column(nullable = false)
+    private double logAmount;
+
+    @Column(nullable = false)
+    private double logSecondsSinceLastTransaction;
+
+    @Column(nullable = false)
+    private double logVelocity1Hour;
+
+    @Column(nullable = false)
+    private double amountTimesMerchantRisk;
+
+    @Column(nullable = false)
+    private double riskScoreProduct;
+
+    @Column(nullable = false)
+    private double ipDeviceRisk;
+
+    @Column(nullable = false)
+    private double countryIpRisk;
+
+    @Column(nullable = false)
+    private double velocityAmountInteraction;
+
+    @Column(nullable = false)
+    private double recencyVelocity;
+
+    @Column(nullable = false)
+    private double amountDeviation;
+
+    @Column(nullable = false)
+    private boolean isNight;
+
+    @Column(nullable = false)
+    private double velocityIntensity;
+
     @MapsId
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "transaction_id")
@@ -88,6 +127,19 @@ public class TransactionFeatureVectorEntity {
                 .hourOfDay(featuresMessage.hourOfDay())
                 .ipRiskScore(featuresMessage.ipRiskScore())
                 .cardAgeDays(featuresMessage.cardAgeDays())
+                .amountVelocity1Hour(featuresMessage.amountVelocity1Hour())
+                .logAmount(featuresMessage.logAmount())
+                .logSecondsSinceLastTransaction(featuresMessage.logSecondsSinceLastTransaction())
+                .logVelocity1Hour(featuresMessage.logVelocity1Hour())
+                .amountTimesMerchantRisk(featuresMessage.amountTimesMerchantRisk())
+                .riskScoreProduct(featuresMessage.riskScoreProduct())
+                .ipDeviceRisk(featuresMessage.ipDeviceRisk())
+                .countryIpRisk(featuresMessage.countryIpRisk())
+                .velocityAmountInteraction(featuresMessage.velocityAmountInteraction())
+                .recencyVelocity(featuresMessage.recencyVelocity())
+                .amountDeviation(featuresMessage.amountDeviation())
+                .isNight(featuresMessage.isNight())
+                .velocityIntensity(featuresMessage.velocityIntensity())
                 .build();
     }
 }
