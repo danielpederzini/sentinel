@@ -82,9 +82,6 @@ public class TransactionFeatureVectorEntity {
     private double amountTimesMerchantRisk;
 
     @Column(nullable = false)
-    private double amountTimesIpRisk;
-
-    @Column(nullable = false)
     private double riskScoreProduct;
 
     @Column(nullable = false)
@@ -100,16 +97,10 @@ public class TransactionFeatureVectorEntity {
     private double recencyVelocity;
 
     @Column(nullable = false)
-    private double cardAgeAmountRatio;
-
-    @Column(nullable = false)
     private double amountDeviation;
 
     @Column(nullable = false)
     private boolean isNight;
-
-    @Column(nullable = false)
-    private double nightAmountRatio;
 
     @Column(nullable = false)
     private double velocityIntensity;
@@ -141,16 +132,13 @@ public class TransactionFeatureVectorEntity {
                 .logSecondsSinceLastTransaction(featuresMessage.logSecondsSinceLastTransaction())
                 .logVelocity1Hour(featuresMessage.logVelocity1Hour())
                 .amountTimesMerchantRisk(featuresMessage.amountTimesMerchantRisk())
-                .amountTimesIpRisk(featuresMessage.amountTimesIpRisk())
                 .riskScoreProduct(featuresMessage.riskScoreProduct())
                 .ipDeviceRisk(featuresMessage.ipDeviceRisk())
                 .countryIpRisk(featuresMessage.countryIpRisk())
                 .velocityAmountInteraction(featuresMessage.velocityAmountInteraction())
                 .recencyVelocity(featuresMessage.recencyVelocity())
-                .cardAgeAmountRatio(featuresMessage.cardAgeAmountRatio())
                 .amountDeviation(featuresMessage.amountDeviation())
                 .isNight(featuresMessage.isNight())
-                .nightAmountRatio(featuresMessage.nightAmountRatio())
                 .velocityIntensity(featuresMessage.velocityIntensity())
                 .build();
     }

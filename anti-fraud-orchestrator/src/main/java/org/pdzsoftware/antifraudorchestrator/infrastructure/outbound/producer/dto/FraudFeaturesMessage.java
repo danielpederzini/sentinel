@@ -27,16 +27,13 @@ public record FraudFeaturesMessage(
         double logSecondsSinceLastTransaction,
         double logVelocity1Hour,
         double amountTimesMerchantRisk,
-        double amountTimesIpRisk,
         double riskScoreProduct,
         double ipDeviceRisk,
         double countryIpRisk,
         double velocityAmountInteraction,
         double recencyVelocity,
-        double cardAgeAmountRatio,
         double amountDeviation,
         boolean isNight,
-        double nightAmountRatio,
         double velocityIntensity
 ) {
     public static FraudFeaturesMessage from(FraudFeatureResponse fraudFeatureResponse) {
@@ -57,16 +54,13 @@ public record FraudFeaturesMessage(
                 .logSecondsSinceLastTransaction(fraudFeatureResponse.logSecondsSinceLastTransaction())
                 .logVelocity1Hour(fraudFeatureResponse.logVelocity1Hour())
                 .amountTimesMerchantRisk(fraudFeatureResponse.amountTimesMerchantRisk())
-                .amountTimesIpRisk(fraudFeatureResponse.amountTimesIpRisk())
                 .riskScoreProduct(fraudFeatureResponse.riskScoreProduct())
                 .ipDeviceRisk(fraudFeatureResponse.ipDeviceRisk())
                 .countryIpRisk(fraudFeatureResponse.countryIpRisk())
                 .velocityAmountInteraction(fraudFeatureResponse.velocityAmountInteraction())
                 .recencyVelocity(fraudFeatureResponse.recencyVelocity())
-                .cardAgeAmountRatio(fraudFeatureResponse.cardAgeAmountRatio())
                 .amountDeviation(fraudFeatureResponse.amountDeviation())
                 .isNight(fraudFeatureResponse.isNight())
-                .nightAmountRatio(fraudFeatureResponse.nightAmountRatio())
                 .velocityIntensity(fraudFeatureResponse.velocityIntensity())
                 .build();
     }

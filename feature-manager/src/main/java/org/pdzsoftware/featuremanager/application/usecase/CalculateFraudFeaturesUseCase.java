@@ -64,16 +64,13 @@ public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureReques
             double logSecondsSinceLastTransaction = Math.log1p(secondsSinceLastTransaction);
             double logVelocity1Hour = Math.log1p(amountVelocityDouble);
             double amountTimesMerchantRisk = amountDouble * merchantRiskScore;
-            double amountTimesIpRisk = amountDouble * ipRiskScore;
             double riskScoreProduct = merchantRiskScore * ipRiskScore;
             double ipDeviceRisk = ipRiskScore * (isDeviceTrusted ? 0.0 : 1.0);
             double countryIpRisk = (hasCountryMismatch ? 1.0 : 0.0) * ipRiskScore;
             double velocityAmountInteraction = transactionCount1Hour * (double) amountToAverageRatio;
             double recencyVelocity = transactionCount5Min / Math.max(secondsSinceLastTransaction, 1.0);
-            double cardAgeAmountRatio = cardAgeDays * (double) amountToAverageRatio;
             double amountDeviation = Math.abs(amountDouble - averageAmountDouble) / Math.max(averageAmountDouble, 1.0);
             boolean isNight = hourOfDay < 6 || hourOfDay >= 22;
-            double nightAmountRatio = (isNight ? 1.0 : 0.0) * amountToAverageRatio;
             double velocityIntensity = amountVelocityDouble / Math.max(transactionCount1Hour, 1.0);
 
             FraudFeatureResponse fraudFeatureResponse = FraudFeatureResponse.builder()
@@ -95,16 +92,13 @@ public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureReques
                     .logSecondsSinceLastTransaction(logSecondsSinceLastTransaction)
                     .logVelocity1Hour(logVelocity1Hour)
                     .amountTimesMerchantRisk(amountTimesMerchantRisk)
-                    .amountTimesIpRisk(amountTimesIpRisk)
                     .riskScoreProduct(riskScoreProduct)
                     .ipDeviceRisk(ipDeviceRisk)
                     .countryIpRisk(countryIpRisk)
                     .velocityAmountInteraction(velocityAmountInteraction)
                     .recencyVelocity(recencyVelocity)
-                    .cardAgeAmountRatio(cardAgeAmountRatio)
                     .amountDeviation(amountDeviation)
                     .isNight(isNight)
-                    .nightAmountRatio(nightAmountRatio)
                     .velocityIntensity(velocityIntensity)
                     .build();
 

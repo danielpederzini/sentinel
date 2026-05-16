@@ -21,16 +21,13 @@ public record FraudFeaturesMessage(
         double logSecondsSinceLastTransaction,
         double logVelocity1Hour,
         double amountTimesMerchantRisk,
-        double amountTimesIpRisk,
         double riskScoreProduct,
         double ipDeviceRisk,
         double countryIpRisk,
         double velocityAmountInteraction,
         double recencyVelocity,
-        double cardAgeAmountRatio,
         double amountDeviation,
         boolean isNight,
-        double nightAmountRatio,
         double velocityIntensity
 ) {
 }
