@@ -508,8 +508,8 @@ def _sample_amount(
         multiplier = float(rng.uniform(0.7, 2.0))
     else:
         multiplier = float(rng.uniform(0.6, 1.6))
-        if float(rng.random()) < 0.15:
-            multiplier = float(rng.uniform(1.5, 2.5))
+        if float(rng.random()) < 0.06:
+            multiplier = float(rng.uniform(1.5, 2.2))
         if segment in (UserSegment.HIGH_VALUE, UserSegment.BUSINESS):
             multiplier *= float(rng.uniform(0.9, 1.4))
 
@@ -562,8 +562,10 @@ def _sample_card_age(
 ) -> int:
     if is_fraud and FraudSignal.NEW_CARD in signals:
         strength = signals[FraudSignal.NEW_CARD]
-        max_age = int(120 - 80 * strength)
-        return int(rng.integers(1, max(2, max_age)))
+        mean_age = 200.0 - 120.0 * strength
+        sigma = 0.6 + 0.3 * (1.0 - strength)
+        age = float(rng.lognormal(mean=math.log(max(10.0, mean_age)), sigma=sigma))
+        return int(np.clip(age, 1, 1500))
     if is_fraud:
         noise = float(rng.normal(0.0, 0.15))
         return int(np.clip(actual_card_age * (0.85 + noise), 1, 3650))
@@ -598,7 +600,7 @@ def _pick_ip_index(
     if float(rng.random()) < home_prob:
         return profile.home_ip_idx
 
-    if fraud_ring_indices and float(rng.random()) < 0.06:
+    if fraud_ring_indices and float(rng.random()) < 0.02:
         return int(rng.choice(fraud_ring_indices))
 
     if profile.roaming_ip_indices:
@@ -628,7 +630,7 @@ def _pick_merchant_index(
     if float(rng.random()) < 0.62 and profile.preferred_merchant_indices:
         return int(rng.choice(profile.preferred_merchant_indices))
 
-    if high_risk_merchant_indices and float(rng.random()) < 0.08:
+    if high_risk_merchant_indices and float(rng.random()) < 0.03:
         return int(rng.choice(high_risk_merchant_indices))
 
     return int(rng.integers(0, n_merchants))
@@ -675,7 +677,7 @@ def _build_profiles(
             7, 3650,
         ))
 
-        if fraud_ring_indices and float(rng.random()) < 0.06:
+        if fraud_ring_indices and float(rng.random()) < 0.02:
             home_ip_idx = int(rng.choice(fraud_ring_indices))
         else:
             home_ip_idx = int(rng.integers(0, n_ips))
