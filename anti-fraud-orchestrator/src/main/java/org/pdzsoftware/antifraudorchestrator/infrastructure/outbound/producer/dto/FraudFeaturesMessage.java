@@ -22,7 +22,22 @@ public record FraudFeaturesMessage(
         int hourOfDay,
         float ipRiskScore,
         long cardAgeDays,
-        BigDecimal amountVelocity1Hour
+        BigDecimal amountVelocity1Hour,
+        double logAmount,
+        double logSecondsSinceLastTransaction,
+        double logVelocity1Hour,
+        double amountTimesMerchantRisk,
+        double amountTimesIpRisk,
+        double riskScoreProduct,
+        double ipDeviceRisk,
+        double countryIpRisk,
+        double velocityAmountInteraction,
+        double recencyVelocity,
+        double cardAgeAmountRatio,
+        double amountDeviation,
+        boolean isNight,
+        double nightAmountRatio,
+        double velocityIntensity
 ) {
     public static FraudFeaturesMessage from(FraudFeatureResponse fraudFeatureResponse) {
         return FraudFeaturesMessage.builder()
@@ -38,6 +53,21 @@ public record FraudFeaturesMessage(
                 .ipRiskScore(fraudFeatureResponse.ipRiskScore())
                 .cardAgeDays(fraudFeatureResponse.cardAgeDays())
                 .amountVelocity1Hour(fraudFeatureResponse.amountVelocity1Hour())
+                .logAmount(fraudFeatureResponse.logAmount())
+                .logSecondsSinceLastTransaction(fraudFeatureResponse.logSecondsSinceLastTransaction())
+                .logVelocity1Hour(fraudFeatureResponse.logVelocity1Hour())
+                .amountTimesMerchantRisk(fraudFeatureResponse.amountTimesMerchantRisk())
+                .amountTimesIpRisk(fraudFeatureResponse.amountTimesIpRisk())
+                .riskScoreProduct(fraudFeatureResponse.riskScoreProduct())
+                .ipDeviceRisk(fraudFeatureResponse.ipDeviceRisk())
+                .countryIpRisk(fraudFeatureResponse.countryIpRisk())
+                .velocityAmountInteraction(fraudFeatureResponse.velocityAmountInteraction())
+                .recencyVelocity(fraudFeatureResponse.recencyVelocity())
+                .cardAgeAmountRatio(fraudFeatureResponse.cardAgeAmountRatio())
+                .amountDeviation(fraudFeatureResponse.amountDeviation())
+                .isNight(fraudFeatureResponse.isNight())
+                .nightAmountRatio(fraudFeatureResponse.nightAmountRatio())
+                .velocityIntensity(fraudFeatureResponse.velocityIntensity())
                 .build();
     }
 }

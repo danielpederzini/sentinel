@@ -1,4 +1,5 @@
 import glob
+import math
 import os
 import sys
 import logging
@@ -60,8 +61,46 @@ def _find_risk_level(probability: float, threshold: float) -> RiskLevel:
     return RiskLevel.LOW
 
 
-def _build_feature_values(request: FraudPredictionRequest) -> dict[str, float | int | bool]:
+def _engineer_features(request: FraudPredictionRequest) -> dict[str, float]:
+    log_amount = math.log1p(request.amount)
+    log_seconds_since = math.log1p(request.seconds_since_last_transaction)
+    log_velocity_1hour = math.log1p(request.amount_velocity_1hour)
+    amount_x_merchant_risk = request.amount * request.merchant_risk_score
+    amount_x_ip_risk = request.amount * request.ip_risk_score
+    risk_score_product = request.merchant_risk_score * request.ip_risk_score
+    device_untrusted = 0.0 if request.is_device_trusted else 1.0
+    ip_device_risk = request.ip_risk_score * device_untrusted
+    country_flag = 1.0 if request.has_country_mismatch else 0.0
+    country_ip_risk = country_flag * request.ip_risk_score
+    velocity_amount_interaction = request.user_transaction_count_1hour * request.amount_to_average_ratio
+    recency_velocity = request.user_transaction_count_5min / max(request.seconds_since_last_transaction, 1)
+    card_age_x_amount_ratio = request.card_age_days * request.amount_to_average_ratio
+    amount_deviation = abs(request.amount - request.user_average_amount) / max(request.user_average_amount, 1.0)
+    is_night = 1.0 if (request.hour_of_day < 6 or request.hour_of_day >= 22) else 0.0
+    night_amount_ratio = is_night * request.amount_to_average_ratio
+    velocity_intensity = request.amount_velocity_1hour / max(request.user_transaction_count_1hour, 1)
+
     return {
+        "log_amount": log_amount,
+        "log_seconds_since": log_seconds_since,
+        "log_velocity_1hour": log_velocity_1hour,
+        "amount_x_merchant_risk": amount_x_merchant_risk,
+        "amount_x_ip_risk": amount_x_ip_risk,
+        "risk_score_product": risk_score_product,
+        "ip_device_risk": ip_device_risk,
+        "country_ip_risk": country_ip_risk,
+        "velocity_amount_interaction": velocity_amount_interaction,
+        "recency_velocity": recency_velocity,
+        "card_age_x_amount_ratio": card_age_x_amount_ratio,
+        "amount_deviation": amount_deviation,
+        "is_night": is_night,
+        "night_amount_ratio": night_amount_ratio,
+        "velocity_intensity": velocity_intensity,
+    }
+
+
+def _build_feature_values(request: FraudPredictionRequest) -> dict[str, float | int | bool]:
+    base = {
         "amount": request.amount,
         "user_average_amount": request.user_average_amount,
         "user_transaction_count_5min": request.user_transaction_count_5min,
@@ -75,8 +114,9 @@ def _build_feature_values(request: FraudPredictionRequest) -> dict[str, float | 
         "hour_of_day": request.hour_of_day,
         "ip_risk_score": request.ip_risk_score,
         "card_age_days": request.card_age_days,
-        "amount_velocity_1hour": request.amount_velocity_1hour,
     }
+    base.update(_engineer_features(request))
+    return base
 
 
 def _build_explainability(

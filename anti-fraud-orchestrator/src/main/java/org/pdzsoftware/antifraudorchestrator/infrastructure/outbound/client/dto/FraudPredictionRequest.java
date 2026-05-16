@@ -16,7 +16,22 @@ public record FraudPredictionRequest(
 		@JsonProperty("hour_of_day") int hourOfDay,
 		@JsonProperty("ip_risk_score") float ipRiskScore,
 		@JsonProperty("card_age_days") long cardAgeDays,
-		@JsonProperty("amount_velocity_1hour") double amountVelocity1Hour
+		@JsonProperty("amount_velocity_1hour") double amountVelocity1Hour,
+		@JsonProperty("log_amount") double logAmount,
+		@JsonProperty("log_seconds_since") double logSecondsSinceLastTransaction,
+		@JsonProperty("log_velocity_1hour") double logVelocity1Hour,
+		@JsonProperty("amount_x_merchant_risk") double amountTimesMerchantRisk,
+		@JsonProperty("amount_x_ip_risk") double amountTimesIpRisk,
+		@JsonProperty("risk_score_product") double riskScoreProduct,
+		@JsonProperty("ip_device_risk") double ipDeviceRisk,
+		@JsonProperty("country_ip_risk") double countryIpRisk,
+		@JsonProperty("velocity_amount_interaction") double velocityAmountInteraction,
+		@JsonProperty("recency_velocity") double recencyVelocity,
+		@JsonProperty("card_age_x_amount_ratio") double cardAgeAmountRatio,
+		@JsonProperty("amount_deviation") double amountDeviation,
+		@JsonProperty("is_night") boolean isNight,
+		@JsonProperty("night_amount_ratio") double nightAmountRatio,
+		@JsonProperty("velocity_intensity") double velocityIntensity
 ) {
 	public static FraudPredictionRequest from(FraudFeatureResponse features) {
 		return new FraudPredictionRequest(
@@ -33,7 +48,22 @@ public record FraudPredictionRequest(
 				features.hourOfDay(),
 				features.ipRiskScore(),
 				features.cardAgeDays(),
-				features.amountVelocity1Hour().doubleValue()
+				features.amountVelocity1Hour().doubleValue(),
+				features.logAmount(),
+				features.logSecondsSinceLastTransaction(),
+				features.logVelocity1Hour(),
+				features.amountTimesMerchantRisk(),
+				features.amountTimesIpRisk(),
+				features.riskScoreProduct(),
+				features.ipDeviceRisk(),
+				features.countryIpRisk(),
+				features.velocityAmountInteraction(),
+				features.recencyVelocity(),
+				features.cardAgeAmountRatio(),
+				features.amountDeviation(),
+				features.isNight(),
+				features.nightAmountRatio(),
+				features.velocityIntensity()
 		);
 	}
 }

@@ -55,6 +55,27 @@ public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureReques
 
             featureCacheService.recordUserTransaction(input.userId(), input.transactionId(), input.amount());
 
+            double amountDouble = input.amount().doubleValue();
+            double merchantRiskScore = merchantEntity.getRiskScore();
+            double averageAmountDouble = averageAmount.doubleValue();
+            double amountVelocityDouble = amountVelocity1Hour.doubleValue();
+
+            double logAmount = Math.log1p(amountDouble);
+            double logSecondsSinceLastTransaction = Math.log1p(secondsSinceLastTransaction);
+            double logVelocity1Hour = Math.log1p(amountVelocityDouble);
+            double amountTimesMerchantRisk = amountDouble * merchantRiskScore;
+            double amountTimesIpRisk = amountDouble * ipRiskScore;
+            double riskScoreProduct = merchantRiskScore * ipRiskScore;
+            double ipDeviceRisk = ipRiskScore * (isDeviceTrusted ? 0.0 : 1.0);
+            double countryIpRisk = (hasCountryMismatch ? 1.0 : 0.0) * ipRiskScore;
+            double velocityAmountInteraction = transactionCount1Hour * (double) amountToAverageRatio;
+            double recencyVelocity = transactionCount5Min / Math.max(secondsSinceLastTransaction, 1.0);
+            double cardAgeAmountRatio = cardAgeDays * (double) amountToAverageRatio;
+            double amountDeviation = Math.abs(amountDouble - averageAmountDouble) / Math.max(averageAmountDouble, 1.0);
+            boolean isNight = hourOfDay < 6 || hourOfDay >= 22;
+            double nightAmountRatio = (isNight ? 1.0 : 0.0) * amountToAverageRatio;
+            double velocityIntensity = amountVelocityDouble / Math.max(transactionCount1Hour, 1.0);
+
             FraudFeatureResponse fraudFeatureResponse = FraudFeatureResponse.builder()
                     .transactionId(input.transactionId())
                     .amount(input.amount())
@@ -70,6 +91,21 @@ public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureReques
                     .ipRiskScore(ipRiskScore)
                     .cardAgeDays(cardAgeDays)
                     .amountVelocity1Hour(amountVelocity1Hour)
+                    .logAmount(logAmount)
+                    .logSecondsSinceLastTransaction(logSecondsSinceLastTransaction)
+                    .logVelocity1Hour(logVelocity1Hour)
+                    .amountTimesMerchantRisk(amountTimesMerchantRisk)
+                    .amountTimesIpRisk(amountTimesIpRisk)
+                    .riskScoreProduct(riskScoreProduct)
+                    .ipDeviceRisk(ipDeviceRisk)
+                    .countryIpRisk(countryIpRisk)
+                    .velocityAmountInteraction(velocityAmountInteraction)
+                    .recencyVelocity(recencyVelocity)
+                    .cardAgeAmountRatio(cardAgeAmountRatio)
+                    .amountDeviation(amountDeviation)
+                    .isNight(isNight)
+                    .nightAmountRatio(nightAmountRatio)
+                    .velocityIntensity(velocityIntensity)
                     .build();
 
             log.info("Calculated fraud features for transaction {}", input.transactionId());

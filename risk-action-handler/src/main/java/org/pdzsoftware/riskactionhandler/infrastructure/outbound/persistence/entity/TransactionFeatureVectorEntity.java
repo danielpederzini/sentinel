@@ -69,6 +69,51 @@ public class TransactionFeatureVectorEntity {
     @Column(nullable = false)
     private BigDecimal amountVelocity1Hour;
 
+    @Column(nullable = false)
+    private double logAmount;
+
+    @Column(nullable = false)
+    private double logSecondsSinceLastTransaction;
+
+    @Column(nullable = false)
+    private double logVelocity1Hour;
+
+    @Column(nullable = false)
+    private double amountTimesMerchantRisk;
+
+    @Column(nullable = false)
+    private double amountTimesIpRisk;
+
+    @Column(nullable = false)
+    private double riskScoreProduct;
+
+    @Column(nullable = false)
+    private double ipDeviceRisk;
+
+    @Column(nullable = false)
+    private double countryIpRisk;
+
+    @Column(nullable = false)
+    private double velocityAmountInteraction;
+
+    @Column(nullable = false)
+    private double recencyVelocity;
+
+    @Column(nullable = false)
+    private double cardAgeAmountRatio;
+
+    @Column(nullable = false)
+    private double amountDeviation;
+
+    @Column(nullable = false)
+    private boolean isNight;
+
+    @Column(nullable = false)
+    private double nightAmountRatio;
+
+    @Column(nullable = false)
+    private double velocityIntensity;
+
     @MapsId
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "transaction_id")
@@ -92,6 +137,21 @@ public class TransactionFeatureVectorEntity {
                 .ipRiskScore(featuresMessage.ipRiskScore())
                 .cardAgeDays(featuresMessage.cardAgeDays())
                 .amountVelocity1Hour(featuresMessage.amountVelocity1Hour())
+                .logAmount(featuresMessage.logAmount())
+                .logSecondsSinceLastTransaction(featuresMessage.logSecondsSinceLastTransaction())
+                .logVelocity1Hour(featuresMessage.logVelocity1Hour())
+                .amountTimesMerchantRisk(featuresMessage.amountTimesMerchantRisk())
+                .amountTimesIpRisk(featuresMessage.amountTimesIpRisk())
+                .riskScoreProduct(featuresMessage.riskScoreProduct())
+                .ipDeviceRisk(featuresMessage.ipDeviceRisk())
+                .countryIpRisk(featuresMessage.countryIpRisk())
+                .velocityAmountInteraction(featuresMessage.velocityAmountInteraction())
+                .recencyVelocity(featuresMessage.recencyVelocity())
+                .cardAgeAmountRatio(featuresMessage.cardAgeAmountRatio())
+                .amountDeviation(featuresMessage.amountDeviation())
+                .isNight(featuresMessage.isNight())
+                .nightAmountRatio(featuresMessage.nightAmountRatio())
+                .velocityIntensity(featuresMessage.velocityIntensity())
                 .build();
     }
 }
