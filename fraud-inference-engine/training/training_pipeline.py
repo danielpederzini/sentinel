@@ -38,7 +38,32 @@ BASE_FEATURES = [
     "hour_of_day",
     "ip_risk_score",
     "card_age_days",
+    "user_account_age_days",
+    "day_of_week",
+    "merchant_category",
+    "card_type",
+    "distinct_merchant_count_1hour",
 ]
+
+CATEGORICAL_FEATURES = ["merchant_category", "card_type"]
+
+_MERCHANT_CATEGORY_MAP = {
+    "GROCERY": 0, "RESTAURANT": 1, "ENTERTAINMENT": 2, "TRAVEL": 3,
+    "HEALTHCARE": 4, "EDUCATION": 5, "UTILITIES": 6, "OTHER": 7,
+}
+_CARD_TYPE_MAP = {
+    "CREDIT": 0, "DEBIT": 1, "CREDIT_AND_DEBIT": 2, "OTHER": 3,
+}
+
+
+def encode_categoricals(df: pd.DataFrame) -> pd.DataFrame:
+    """Label-encode merchant_category and card_type to integers."""
+    out = df.copy()
+    if "merchant_category" in out.columns:
+        out["merchant_category"] = out["merchant_category"].map(_MERCHANT_CATEGORY_MAP).fillna(7).astype(int)
+    if "card_type" in out.columns:
+        out["card_type"] = out["card_type"].map(_CARD_TYPE_MAP).fillna(3).astype(int)
+    return out
 
 
 def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -137,6 +162,7 @@ def _optuna_objective(
     X_val: pd.DataFrame,
     y_val: pd.Series,
     class_weight_scale: float,
+    categorical_indices: list[int] | None = None,
 ) -> float:
     params = {
         "n_estimators": 3000,
@@ -152,10 +178,15 @@ def _optuna_objective(
 
     model = _build_lgbm(params, class_weight_scale)
 
+    fit_kwargs = {}
+    if categorical_indices:
+        fit_kwargs["categorical_feature"] = categorical_indices
+
     model.fit(
         X_train, y_train,
         eval_set=[(X_val, y_val)],
         callbacks=[lgb.early_stopping(100, verbose=False), lgb.log_evaluation(period=0)],
+        **fit_kwargs,
     )
 
     y_proba = model.predict_proba(X_val)[:, 1]
@@ -178,13 +209,15 @@ def train_model(
     data = load_data(data_file)
     data = data.drop(columns=["transaction_id", "user_id"], errors="ignore")
 
-    # Feature engineering
+    # Encode categoricals and engineer features
+    data = encode_categoricals(data)
     data = engineer_features(data)
 
     X = data.drop(columns=["is_fraud"])
     y = data["is_fraud"].astype(int)
 
     feature_names = list(X.columns)
+    categorical_indices = [feature_names.index(c) for c in CATEGORICAL_FEATURES if c in feature_names]
     print(f"Features ({len(feature_names)}): {feature_names}")
 
     class_weight_scale = float(y.value_counts()[0] / y.value_counts()[1])
@@ -203,7 +236,7 @@ def train_model(
 
         study.optimize(
             lambda trial: _optuna_objective(
-                trial, X_train, y_train, X_cal, y_cal, class_weight_scale,
+                trial, X_train, y_train, X_cal, y_cal, class_weight_scale, categorical_indices,
             ),
             n_trials=n_trials,
             show_progress_bar=True,
@@ -232,6 +265,9 @@ def train_model(
     final_model = _build_lgbm(best_params, class_weight_scale)
 
     progress_cb = _LGBMProgressCallback(best_params["n_estimators"])
+    final_fit_kwargs = {}
+    if categorical_indices:
+        final_fit_kwargs["categorical_feature"] = categorical_indices
     final_model.fit(
         X_train, y_train,
         eval_set=[(X_cal, y_cal)],
@@ -240,6 +276,7 @@ def train_model(
             lgb.log_evaluation(period=0),
             progress_cb,
         ],
+        **final_fit_kwargs,
     )
 
     # ── Isotonic calibration ──

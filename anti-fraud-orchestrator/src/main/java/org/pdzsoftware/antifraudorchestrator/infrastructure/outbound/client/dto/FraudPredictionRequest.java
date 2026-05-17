@@ -2,6 +2,8 @@ package org.pdzsoftware.antifraudorchestrator.infrastructure.outbound.client.dto
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.util.Map;
+
 public record FraudPredictionRequest(
 		@JsonProperty("transaction_id") String transactionId,
 		@JsonProperty("amount") double amount,
@@ -17,6 +19,11 @@ public record FraudPredictionRequest(
 		@JsonProperty("ip_risk_score") float ipRiskScore,
 		@JsonProperty("card_age_days") long cardAgeDays,
 		@JsonProperty("amount_velocity_1hour") double amountVelocity1Hour,
+		@JsonProperty("user_account_age_days") long userAccountAgeDays,
+		@JsonProperty("day_of_week") int dayOfWeek,
+		@JsonProperty("merchant_category") int merchantCategory,
+		@JsonProperty("card_type") int cardType,
+		@JsonProperty("distinct_merchant_count_1hour") long distinctMerchantCount1Hour,
 		@JsonProperty("log_amount") double logAmount,
 		@JsonProperty("log_seconds_since") double logSecondsSinceLastTransaction,
 		@JsonProperty("log_velocity_1hour") double logVelocity1Hour,
@@ -46,6 +53,11 @@ public record FraudPredictionRequest(
 				features.ipRiskScore(),
 				features.cardAgeDays(),
 				features.amountVelocity1Hour().doubleValue(),
+				features.userAccountAgeDays(),
+				features.dayOfWeek(),
+				mapMerchantCategory(features.merchantCategory()),
+				mapCardType(features.cardType()),
+				features.distinctMerchantCount1Hour(),
 				features.logAmount(),
 				features.logSecondsSinceLastTransaction(),
 				features.logVelocity1Hour(),
@@ -59,5 +71,22 @@ public record FraudPredictionRequest(
 				features.isNight(),
 				features.velocityIntensity()
 		);
+	}
+
+	private static final Map<String, Integer> MERCHANT_CATEGORY_MAP = Map.of(
+			"GROCERY", 0, "RESTAURANT", 1, "ENTERTAINMENT", 2, "TRAVEL", 3,
+			"HEALTHCARE", 4, "EDUCATION", 5, "UTILITIES", 6, "OTHER", 7
+	);
+
+	private static final Map<String, Integer> CARD_TYPE_MAP = Map.of(
+			"CREDIT", 0, "DEBIT", 1, "CREDIT_AND_DEBIT", 2, "OTHER", 3
+	);
+
+	private static int mapMerchantCategory(String category) {
+		return MERCHANT_CATEGORY_MAP.getOrDefault(category, 7);
+	}
+
+	private static int mapCardType(String cardType) {
+		return CARD_TYPE_MAP.getOrDefault(cardType, 3);
 	}
 }

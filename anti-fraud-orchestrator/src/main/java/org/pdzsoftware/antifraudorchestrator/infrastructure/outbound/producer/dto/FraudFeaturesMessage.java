@@ -23,6 +23,11 @@ public record FraudFeaturesMessage(
         float ipRiskScore,
         long cardAgeDays,
         BigDecimal amountVelocity1Hour,
+        long userAccountAgeDays,
+        int dayOfWeek,
+        String merchantCategory,
+        String cardType,
+        long distinctMerchantCount1Hour,
         double logAmount,
         double logSecondsSinceLastTransaction,
         double logVelocity1Hour,
@@ -50,6 +55,11 @@ public record FraudFeaturesMessage(
                 .ipRiskScore(fraudFeatureResponse.ipRiskScore())
                 .cardAgeDays(fraudFeatureResponse.cardAgeDays())
                 .amountVelocity1Hour(fraudFeatureResponse.amountVelocity1Hour())
+                .userAccountAgeDays(fraudFeatureResponse.userAccountAgeDays())
+                .dayOfWeek(fraudFeatureResponse.dayOfWeek())
+                .merchantCategory(fraudFeatureResponse.merchantCategory())
+                .cardType(fraudFeatureResponse.cardType())
+                .distinctMerchantCount1Hour(fraudFeatureResponse.distinctMerchantCount1Hour())
                 .logAmount(fraudFeatureResponse.logAmount())
                 .logSecondsSinceLastTransaction(fraudFeatureResponse.logSecondsSinceLastTransaction())
                 .logVelocity1Hour(fraudFeatureResponse.logVelocity1Hour())

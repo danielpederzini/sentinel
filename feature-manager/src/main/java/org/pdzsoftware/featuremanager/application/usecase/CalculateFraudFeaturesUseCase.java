@@ -52,8 +52,14 @@ public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureReques
             long transactionCount5Min = featureCacheService.getUserTransactionCount5Min(input.userId());
             long transactionCount1Hour = featureCacheService.getUserTransactionCount1Hour(input.userId());
             BigDecimal amountVelocity1Hour = featureCacheService.getAmountVelocity1Hour(input.userId());
+            long distinctMerchantCount1Hour = featureCacheService.getDistinctMerchantCount1Hour(input.userId());
 
-            featureCacheService.recordUserTransaction(input.userId(), input.transactionId(), input.amount());
+            long userAccountAgeDays = Duration.between(userEntity.getCreationDateTime(), LocalDateTime.now()).toDays();
+            int dayOfWeek = input.creationDateTime().getDayOfWeek().getValue();
+            String merchantCategory = merchantEntity.getCategory().name();
+            String cardType = cardEntity.getType().name();
+
+            featureCacheService.recordUserTransaction(input.userId(), input.transactionId(), input.amount(), input.merchantId());
 
             double amountDouble = input.amount().doubleValue();
             double merchantRiskScore = merchantEntity.getRiskScore();
@@ -88,6 +94,11 @@ public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureReques
                     .ipRiskScore(ipRiskScore)
                     .cardAgeDays(cardAgeDays)
                     .amountVelocity1Hour(amountVelocity1Hour)
+                    .userAccountAgeDays(userAccountAgeDays)
+                    .dayOfWeek(dayOfWeek)
+                    .merchantCategory(merchantCategory)
+                    .cardType(cardType)
+                    .distinctMerchantCount1Hour(distinctMerchantCount1Hour)
                     .logAmount(logAmount)
                     .logSecondsSinceLastTransaction(logSecondsSinceLastTransaction)
                     .logVelocity1Hour(logVelocity1Hour)

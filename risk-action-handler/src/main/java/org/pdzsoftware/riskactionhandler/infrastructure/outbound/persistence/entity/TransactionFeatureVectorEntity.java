@@ -70,6 +70,21 @@ public class TransactionFeatureVectorEntity {
     private BigDecimal amountVelocity1Hour;
 
     @Column(nullable = false)
+    private long userAccountAgeDays;
+
+    @Column(nullable = false)
+    private int dayOfWeek;
+
+    @Column(nullable = false)
+    private String merchantCategory;
+
+    @Column(nullable = false)
+    private String cardType;
+
+    @Column(nullable = false)
+    private long distinctMerchantCount1Hour;
+
+    @Column(nullable = false)
     private double logAmount;
 
     @Column(nullable = false)
@@ -128,6 +143,11 @@ public class TransactionFeatureVectorEntity {
                 .ipRiskScore(featuresMessage.ipRiskScore())
                 .cardAgeDays(featuresMessage.cardAgeDays())
                 .amountVelocity1Hour(featuresMessage.amountVelocity1Hour())
+                .userAccountAgeDays(featuresMessage.userAccountAgeDays())
+                .dayOfWeek(featuresMessage.dayOfWeek())
+                .merchantCategory(featuresMessage.merchantCategory())
+                .cardType(featuresMessage.cardType())
+                .distinctMerchantCount1Hour(featuresMessage.distinctMerchantCount1Hour())
                 .logAmount(featuresMessage.logAmount())
                 .logSecondsSinceLastTransaction(featuresMessage.logSecondsSinceLastTransaction())
                 .logVelocity1Hour(featuresMessage.logVelocity1Hour())

@@ -70,6 +70,11 @@ public class EmailContentBuilder {
 				    <tr><td style="padding: 4px 12px;"><strong>Card Age (days)</strong></td><td>%d</td></tr>
 				    <tr><td style="padding: 4px 12px;"><strong>Hour of Day</strong></td><td>%d</td></tr>
 				    <tr><td style="padding: 4px 12px;"><strong>Amount Velocity (1 Hour)</strong></td><td>$%s</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>User Account Age (days)</strong></td><td>%d</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Day of Week</strong></td><td>%d</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Merchant Category</strong></td><td>%s</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Card Type</strong></td><td>%s</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Distinct Merchants (1 Hour)</strong></td><td>%d</td></tr>
 				  </table>
 				  <hr>
 
@@ -132,6 +137,11 @@ public class EmailContentBuilder {
 				features.cardAgeDays(),
 				features.hourOfDay(),
 				features.amountVelocity1Hour(),
+				features.userAccountAgeDays(),
+				features.dayOfWeek(),
+				features.merchantCategory(),
+				features.cardType(),
+				features.distinctMerchantCount1Hour(),
 				features.logAmount(),
 				features.logSecondsSinceLastTransaction(),
 				features.logVelocity1Hour(),

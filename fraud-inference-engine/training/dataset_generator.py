@@ -34,8 +34,16 @@ _OUTPUT_COLUMNS = [
     "hour_of_day",
     "ip_risk_score",
     "card_age_days",
+    "user_account_age_days",
+    "day_of_week",
+    "merchant_category",
+    "card_type",
+    "distinct_merchant_count_1hour",
     "is_fraud",
 ]
+
+_MERCHANT_CATEGORIES = ["GROCERY", "RESTAURANT", "ENTERTAINMENT", "TRAVEL", "HEALTHCARE", "EDUCATION", "UTILITIES", "OTHER"]
+_CARD_TYPES = ["CREDIT", "DEBIT", "CREDIT_AND_DEBIT", "OTHER"]
 
 _COUNTRIES = np.array(
     ["US", "BR", "AR", "DE", "ES", "SE", "NL", "GB", "CA", "JP",
@@ -164,6 +172,7 @@ class MerchantRecord:
     risk_score: float
     category_risk_tier: int   # 0=low, 1=medium, 2=high
     drift_rate: float
+    category: str
 
 
 def _build_ip_registry(rng: np.random.Generator, n: int) -> list[IpRecord]:
@@ -198,7 +207,13 @@ def _build_merchant_registry(rng: np.random.Generator, n: int) -> list[MerchantR
             category_risk_tier = 2
         risk_score = float(np.clip(base + rng.normal(0.0, 0.025), 0.0, 1.0))
         drift_rate = float(rng.normal(0.0, 0.001))
-        records.append(MerchantRecord(risk_score=risk_score, category_risk_tier=category_risk_tier, drift_rate=drift_rate))
+        if category_risk_tier == 0:
+            category = str(rng.choice(["GROCERY", "HEALTHCARE", "EDUCATION", "UTILITIES"]))
+        elif category_risk_tier == 1:
+            category = str(rng.choice(["RESTAURANT", "OTHER"]))
+        else:
+            category = str(rng.choice(["ENTERTAINMENT", "TRAVEL"]))
+        records.append(MerchantRecord(risk_score=risk_score, category_risk_tier=category_risk_tier, drift_rate=drift_rate, category=category))
     return records
 
 
@@ -379,6 +394,8 @@ class UserProfile:
     activity_weight: float
     trusted_device_rate: float
     card_creation_date: datetime
+    account_creation_date: datetime
+    card_type: str
     home_ip_idx: int
     roaming_ip_indices: list[int]
     preferred_merchant_indices: list[int]
@@ -394,6 +411,7 @@ class UserState:
     recent_timestamps_5m: deque = field(default_factory=deque)
     recent_timestamps_1h: deque = field(default_factory=deque)
     recent_amounts_1h: deque = field(default_factory=deque)
+    recent_merchants_1h: deque = field(default_factory=deque)
     last_timestamp: datetime | None = None
     transaction_count: int = 0
     escalation_score: float = 0.0
@@ -688,6 +706,12 @@ def _build_profiles(
         n_preferred = int(rng.integers(cfg.preferred_merchant_count[0], cfg.preferred_merchant_count[1] + 1))
         preferred_merchant_indices = [int(rng.integers(0, n_merchants)) for _ in range(n_preferred)]
 
+        account_age_days = int(np.clip(
+            card_age_days + rng.integers(-180, 365),
+            30, 3650,
+        ))
+        card_type = str(rng.choice(_CARD_TYPES, p=[0.45, 0.35, 0.15, 0.05]))
+
         profiles.append(UserProfile(
             user_id=f"user-{index + 1:04d}",
             segment=segment,
@@ -696,6 +720,8 @@ def _build_profiles(
             activity_weight=activity_weight,
             trusted_device_rate=trusted_device_rate,
             card_creation_date=simulation_start - timedelta(days=card_age_days),
+            account_creation_date=simulation_start - timedelta(days=account_age_days),
+            card_type=card_type,
             home_ip_idx=home_ip_idx,
             roaming_ip_indices=roaming_ip_indices,
             preferred_merchant_indices=preferred_merchant_indices,
@@ -743,6 +769,8 @@ def _prune_windows(state: UserState, current_timestamp: datetime) -> None:
         state.recent_timestamps_1h.popleft()
         if state.recent_amounts_1h:
             state.recent_amounts_1h.popleft()
+        if state.recent_merchants_1h:
+            state.recent_merchants_1h.popleft()
 
 
 def _choose_event_kind(rng: np.random.Generator, fraud_rate: float, stealth_rate: float) -> tuple[bool, str]:
@@ -884,6 +912,13 @@ def _generate_row(
 
     amount_velocity_1hour = round(float(sum(state.recent_amounts_1h)) + amount, 2)
 
+    # New features
+    user_account_age_days = max(1, int((event_timestamp - profile.account_creation_date).days))
+    day_of_week = event_timestamp.isoweekday()  # 1=Monday, 7=Sunday
+    merchant_category = merchant_registry[merchant_idx].category
+    card_type = profile.card_type
+    distinct_merchant_count_1hour = len(set(state.recent_merchants_1h)) + (1 if merchant_idx not in set(state.recent_merchants_1h) else 0)
+
     # Update state
     state.running_amount_sum += amount
     state.running_amount_count += 1
@@ -893,6 +928,7 @@ def _generate_row(
     state.recent_timestamps_5m.append(event_timestamp)
     state.recent_timestamps_1h.append(event_timestamp)
     state.recent_amounts_1h.append(amount)
+    state.recent_merchants_1h.append(merchant_idx)
 
     return {
         "transaction_id": _generate_transaction_id(),
@@ -910,6 +946,11 @@ def _generate_row(
         "hour_of_day": hour_of_day,
         "ip_risk_score": ip_risk_score,
         "card_age_days": int(card_age_days),
+        "user_account_age_days": int(user_account_age_days),
+        "day_of_week": int(day_of_week),
+        "merchant_category": merchant_category,
+        "card_type": card_type,
+        "distinct_merchant_count_1hour": int(distinct_merchant_count_1hour),
         "is_fraud": bool(is_fraud),
     }
 
@@ -1027,7 +1068,7 @@ def compute_single_feature_auc(df: pd.DataFrame) -> dict[str, float]:
     from sklearn.metrics import roc_auc_score
 
     y = df["is_fraud"].astype(int)
-    feature_cols = [c for c in _OUTPUT_COLUMNS if c not in ("transaction_id", "user_id", "is_fraud")]
+    feature_cols = [c for c in _OUTPUT_COLUMNS if c not in ("transaction_id", "user_id", "is_fraud", "merchant_category", "card_type")]
     aucs: dict[str, float] = {}
 
     for col in feature_cols:
@@ -1201,6 +1242,11 @@ def simulate(
                 "hour_of_day": row["hour_of_day"],
                 "ip_risk_score": row["ip_risk_score"],
                 "card_age_days": row["card_age_days"],
+                "user_account_age_days": row["user_account_age_days"],
+                "day_of_week": row["day_of_week"],
+                "merchant_category": row["merchant_category"],
+                "card_type": row["card_type"],
+                "distinct_merchant_count_1hour": row["distinct_merchant_count_1hour"],
                 "is_fraud": True,
             })
 
