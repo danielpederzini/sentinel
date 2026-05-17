@@ -76,10 +76,10 @@ public class TransactionFeatureVectorEntity {
     private int dayOfWeek;
 
     @Column(nullable = false)
-    private String merchantCategory;
+    private int merchantCategory;
 
     @Column(nullable = false)
-    private String cardType;
+    private int cardType;
 
     @Column(nullable = false)
     private long distinctMerchantCount1Hour;

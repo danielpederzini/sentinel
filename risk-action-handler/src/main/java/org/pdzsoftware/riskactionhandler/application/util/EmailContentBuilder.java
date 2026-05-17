@@ -72,8 +72,8 @@ public class EmailContentBuilder {
 				    <tr><td style="padding: 4px 12px;"><strong>Amount Velocity (1 Hour)</strong></td><td>$%s</td></tr>
 				    <tr><td style="padding: 4px 12px;"><strong>User Account Age (days)</strong></td><td>%d</td></tr>
 				    <tr><td style="padding: 4px 12px;"><strong>Day of Week</strong></td><td>%d</td></tr>
-				    <tr><td style="padding: 4px 12px;"><strong>Merchant Category</strong></td><td>%s</td></tr>
-				    <tr><td style="padding: 4px 12px;"><strong>Card Type</strong></td><td>%s</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Merchant Category</strong></td><td>%d</td></tr>
+				    <tr><td style="padding: 4px 12px;"><strong>Card Type</strong></td><td>%d</td></tr>
 				    <tr><td style="padding: 4px 12px;"><strong>Distinct Merchants (1 Hour)</strong></td><td>%d</td></tr>
 				  </table>
 				  <hr>

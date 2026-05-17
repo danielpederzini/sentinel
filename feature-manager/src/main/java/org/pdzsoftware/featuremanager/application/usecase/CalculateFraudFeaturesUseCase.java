@@ -56,8 +56,8 @@ public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureReques
 
             long userAccountAgeDays = Duration.between(userEntity.getCreationDateTime(), LocalDateTime.now()).toDays();
             int dayOfWeek = input.creationDateTime().getDayOfWeek().getValue();
-            String merchantCategory = merchantEntity.getCategory().name();
-            String cardType = cardEntity.getType().name();
+            int merchantCategory = merchantEntity.getCategory().ordinal();
+            int cardType = cardEntity.getType().ordinal();
 
             featureCacheService.recordUserTransaction(input.userId(), input.transactionId(), input.amount(), input.merchantId());
 

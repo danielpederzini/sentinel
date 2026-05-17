@@ -2,8 +2,6 @@ package org.pdzsoftware.antifraudorchestrator.infrastructure.outbound.client.dto
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-import java.util.Map;
-
 public record FraudPredictionRequest(
 		@JsonProperty("transaction_id") String transactionId,
 		@JsonProperty("amount") double amount,
@@ -55,8 +53,8 @@ public record FraudPredictionRequest(
 				features.amountVelocity1Hour().doubleValue(),
 				features.userAccountAgeDays(),
 				features.dayOfWeek(),
-				mapMerchantCategory(features.merchantCategory()),
-				mapCardType(features.cardType()),
+				features.merchantCategory(),
+				features.cardType(),
 				features.distinctMerchantCount1Hour(),
 				features.logAmount(),
 				features.logSecondsSinceLastTransaction(),
@@ -73,20 +71,4 @@ public record FraudPredictionRequest(
 		);
 	}
 
-	private static final Map<String, Integer> MERCHANT_CATEGORY_MAP = Map.of(
-			"GROCERY", 0, "RESTAURANT", 1, "ENTERTAINMENT", 2, "TRAVEL", 3,
-			"HEALTHCARE", 4, "EDUCATION", 5, "UTILITIES", 6, "OTHER", 7
-	);
-
-	private static final Map<String, Integer> CARD_TYPE_MAP = Map.of(
-			"CREDIT", 0, "DEBIT", 1, "CREDIT_AND_DEBIT", 2, "OTHER", 3
-	);
-
-	private static int mapMerchantCategory(String category) {
-		return MERCHANT_CATEGORY_MAP.getOrDefault(category, 7);
-	}
-
-	private static int mapCardType(String cardType) {
-		return CARD_TYPE_MAP.getOrDefault(cardType, 3);
-	}
 }
