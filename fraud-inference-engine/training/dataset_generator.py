@@ -100,7 +100,7 @@ _SEGMENT_CONFIGS: dict[UserSegment, SegmentConfig] = {
         activity_shape=1.5, activity_scale=0.6,
         trusted_device_mean=0.92,
         travel_rate=0.04,
-        card_age_log_mean=math.log(500.0), card_age_log_sigma=0.8,
+        card_age_log_mean=math.log(300.0), card_age_log_sigma=0.9,
         fraud_susceptibility=0.8,
         preferred_merchant_count=(2, 5),
         hour_distribution="mixed",
@@ -148,7 +148,7 @@ _SEGMENT_CONFIGS: dict[UserSegment, SegmentConfig] = {
         activity_shape=3.5, activity_scale=1.5,
         trusted_device_mean=0.90,
         travel_rate=0.12,
-        card_age_log_mean=math.log(400.0), card_age_log_sigma=0.9,
+        card_age_log_mean=math.log(250.0), card_age_log_sigma=0.9,
         fraud_susceptibility=1.1,
         preferred_merchant_count=(3, 8),
         hour_distribution="business",
@@ -580,8 +580,8 @@ def _sample_card_age(
 ) -> int:
     if is_fraud and FraudSignal.NEW_CARD in signals:
         strength = signals[FraudSignal.NEW_CARD]
-        mean_age = 200.0 - 120.0 * strength
-        sigma = 0.6 + 0.3 * (1.0 - strength)
+        mean_age = 350.0 - 200.0 * strength
+        sigma = 0.7 + 0.3 * (1.0 - strength)
         age = float(rng.lognormal(mean=math.log(max(10.0, mean_age)), sigma=sigma))
         return int(np.clip(age, 1, 1500))
     if is_fraud:
