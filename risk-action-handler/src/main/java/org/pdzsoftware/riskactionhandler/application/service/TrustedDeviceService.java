@@ -1,7 +1,7 @@
 package org.pdzsoftware.riskactionhandler.application.service;
 
 import lombok.RequiredArgsConstructor;
-import org.pdzsoftware.riskactionhandler.infrastructure.outbound.persistence.repostiory.TrustedDeviceRepository;
+import org.pdzsoftware.riskactionhandler.infrastructure.outbound.persistence.repository.TrustedDeviceRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 

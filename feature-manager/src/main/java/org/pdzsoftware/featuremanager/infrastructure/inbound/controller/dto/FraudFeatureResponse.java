@@ -18,6 +18,24 @@ public record FraudFeatureResponse(
         float amountToAverageRatio,
         int hourOfDay,
         float ipRiskScore,
-        long cardAgeDays
+        long cardAgeDays,
+        BigDecimal amountVelocity1Hour,
+        long userAccountAgeDays,
+        int dayOfWeek,
+        int merchantCategory,
+        int cardType,
+        long distinctMerchantCount1Hour,
+        double logAmount,
+        double logSecondsSinceLastTransaction,
+        double logVelocity1Hour,
+        double amountTimesMerchantRisk,
+        double riskScoreProduct,
+        double ipDeviceRisk,
+        double countryIpRisk,
+        double velocityAmountInteraction,
+        double recencyVelocity,
+        double amountDeviation,
+        boolean isNight,
+        double velocityIntensity
 ) {
 }

@@ -2,7 +2,7 @@ package org.pdzsoftware.riskactionhandler.application.service;
 
 import lombok.RequiredArgsConstructor;
 import org.pdzsoftware.riskactionhandler.infrastructure.outbound.persistence.entity.TransactionEntity;
-import org.pdzsoftware.riskactionhandler.infrastructure.outbound.persistence.repostiory.TransactionRepository;
+import org.pdzsoftware.riskactionhandler.infrastructure.outbound.persistence.repository.TransactionRepository;
 import org.springframework.stereotype.Service;
 
 @Service

@@ -30,7 +30,7 @@ BASE_FEATURES = [
     "user_transaction_count_5min",
     "user_transaction_count_1hour",
     "seconds_since_last_transaction",
-    "amount_velocity_1h",
+    "amount_velocity_1hour",
     "merchant_risk_score",
     "is_device_trusted",
     "has_country_mismatch",
@@ -38,7 +38,32 @@ BASE_FEATURES = [
     "hour_of_day",
     "ip_risk_score",
     "card_age_days",
+    "user_account_age_days",
+    "day_of_week",
+    "merchant_category",
+    "card_type",
+    "distinct_merchant_count_1hour",
 ]
+
+CATEGORICAL_FEATURES = ["merchant_category", "card_type"]
+
+_MERCHANT_CATEGORY_MAP = {
+    "GROCERY": 0, "RESTAURANT": 1, "ENTERTAINMENT": 2, "TRAVEL": 3,
+    "HEALTHCARE": 4, "EDUCATION": 5, "UTILITIES": 6, "OTHER": 7,
+}
+_CARD_TYPE_MAP = {
+    "CREDIT": 0, "DEBIT": 1, "CREDIT_AND_DEBIT": 2, "OTHER": 3,
+}
+
+
+def encode_categoricals(df: pd.DataFrame) -> pd.DataFrame:
+    """Label-encode merchant_category and card_type to integers."""
+    out = df.copy()
+    if "merchant_category" in out.columns:
+        out["merchant_category"] = out["merchant_category"].map(_MERCHANT_CATEGORY_MAP).fillna(7).astype(int)
+    if "card_type" in out.columns:
+        out["card_type"] = out["card_type"].map(_CARD_TYPE_MAP).fillna(3).astype(int)
+    return out
 
 
 def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -52,11 +77,11 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     # Log transforms for skewed features
     out["log_amount"] = np.log1p(out["amount"])
     out["log_seconds_since"] = np.log1p(out["seconds_since_last_transaction"])
-    out["log_velocity_1h"] = np.log1p(out["amount_velocity_1h"])
+    out["log_velocity_1hour"] = np.log1p(out["amount_velocity_1hour"])
 
-    # Interaction: amount × risk scores
-    out["amount_x_merchant_risk"] = out["amount"] * out["merchant_risk_score"]
-    out["amount_x_ip_risk"] = out["amount"] * out["ip_risk_score"]
+    # Interaction: amount × risk scores (capped at 99th percentile to limit outlier influence)
+    raw_amount_x_merchant_risk = out["amount"] * out["merchant_risk_score"]
+    out["amount_x_merchant_risk"] = raw_amount_x_merchant_risk.clip(upper=raw_amount_x_merchant_risk.quantile(0.99))
     out["risk_score_product"] = out["merchant_risk_score"] * out["ip_risk_score"]
 
     # Interaction: device/country with risk
@@ -64,16 +89,12 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     out["ip_device_risk"] = out["ip_risk_score"] * device_untrusted
     out["country_ip_risk"] = out["has_country_mismatch"].astype(float) * out["ip_risk_score"]
 
-    # Velocity × amount interactions
-    out["velocity_amount_interaction"] = (
-        out["user_transaction_count_1hour"] * out["amount_to_average_ratio"]
-    )
+    # Velocity × amount interactions (capped to limit outlier influence)
+    raw_velocity_amount = out["user_transaction_count_1hour"] * out["amount_to_average_ratio"]
+    out["velocity_amount_interaction"] = raw_velocity_amount.clip(upper=raw_velocity_amount.quantile(0.99))
     out["recency_velocity"] = (
         out["user_transaction_count_5min"] / np.clip(out["seconds_since_last_transaction"], 1, None)
     )
-
-    # Card age × amount ratio (new card with high spending)
-    out["card_age_x_amount_ratio"] = out["card_age_days"] * out["amount_to_average_ratio"]
 
     # Amount deviation from user average
     out["amount_deviation"] = np.abs(out["amount"] - out["user_average_amount"]) / np.clip(
@@ -82,10 +103,9 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
 
     # Time-of-day features
     out["is_night"] = ((out["hour_of_day"] < 6) | (out["hour_of_day"] >= 22)).astype(float)
-    out["night_amount_ratio"] = out["is_night"] * out["amount_to_average_ratio"]
 
     # Velocity intensity (amount per recent transaction)
-    out["velocity_intensity"] = out["amount_velocity_1h"] / np.clip(
+    out["velocity_intensity"] = out["amount_velocity_1hour"] / np.clip(
         out["user_transaction_count_1hour"], 1, None
     )
 
@@ -142,6 +162,7 @@ def _optuna_objective(
     X_val: pd.DataFrame,
     y_val: pd.Series,
     class_weight_scale: float,
+    categorical_indices: list[int] | None = None,
 ) -> float:
     params = {
         "n_estimators": 3000,
@@ -157,10 +178,15 @@ def _optuna_objective(
 
     model = _build_lgbm(params, class_weight_scale)
 
+    fit_kwargs = {}
+    if categorical_indices:
+        fit_kwargs["categorical_feature"] = categorical_indices
+
     model.fit(
         X_train, y_train,
         eval_set=[(X_val, y_val)],
         callbacks=[lgb.early_stopping(100, verbose=False), lgb.log_evaluation(period=0)],
+        **fit_kwargs,
     )
 
     y_proba = model.predict_proba(X_val)[:, 1]
@@ -183,13 +209,15 @@ def train_model(
     data = load_data(data_file)
     data = data.drop(columns=["transaction_id", "user_id"], errors="ignore")
 
-    # Feature engineering
+    # Encode categoricals and engineer features
+    data = encode_categoricals(data)
     data = engineer_features(data)
 
     X = data.drop(columns=["is_fraud"])
     y = data["is_fraud"].astype(int)
 
     feature_names = list(X.columns)
+    categorical_indices = [feature_names.index(c) for c in CATEGORICAL_FEATURES if c in feature_names]
     print(f"Features ({len(feature_names)}): {feature_names}")
 
     class_weight_scale = float(y.value_counts()[0] / y.value_counts()[1])
@@ -208,7 +236,7 @@ def train_model(
 
         study.optimize(
             lambda trial: _optuna_objective(
-                trial, X_train, y_train, X_cal, y_cal, class_weight_scale,
+                trial, X_train, y_train, X_cal, y_cal, class_weight_scale, categorical_indices,
             ),
             n_trials=n_trials,
             show_progress_bar=True,
@@ -237,6 +265,9 @@ def train_model(
     final_model = _build_lgbm(best_params, class_weight_scale)
 
     progress_cb = _LGBMProgressCallback(best_params["n_estimators"])
+    final_fit_kwargs = {}
+    if categorical_indices:
+        final_fit_kwargs["categorical_feature"] = categorical_indices
     final_model.fit(
         X_train, y_train,
         eval_set=[(X_cal, y_cal)],
@@ -245,6 +276,7 @@ def train_model(
             lgb.log_evaluation(period=0),
             progress_cb,
         ],
+        **final_fit_kwargs,
     )
 
     # ── Isotonic calibration ──

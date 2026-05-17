@@ -1,4 +1,4 @@
-package org.pdzsoftware.riskactionhandler.infrastructure.outbound.persistence.repostiory;
+package org.pdzsoftware.riskactionhandler.infrastructure.outbound.persistence.repository;
 
 import org.pdzsoftware.riskactionhandler.domain.enums.NotificationStatus;
 import org.pdzsoftware.riskactionhandler.infrastructure.outbound.persistence.entity.NotificationOutboxEntity;

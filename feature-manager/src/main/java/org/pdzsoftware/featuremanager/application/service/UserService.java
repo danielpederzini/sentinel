@@ -3,7 +3,7 @@ package org.pdzsoftware.featuremanager.application.service;
 import lombok.RequiredArgsConstructor;
 import org.pdzsoftware.featuremanager.infrastructure.outbound.persistence.entity.UserEntity;
 import org.pdzsoftware.featuremanager.domain.exception.UserNotFoundException;
-import org.pdzsoftware.featuremanager.infrastructure.outbound.persistence.repostiory.UserRepository;
+import org.pdzsoftware.featuremanager.infrastructure.outbound.persistence.repository.UserRepository;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
