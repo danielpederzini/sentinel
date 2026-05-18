@@ -40,7 +40,13 @@ public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureReques
             MerchantEntity merchantEntity = merchantService.getByIdOrThrow(input.merchantId());
             CardEntity cardEntity = cardService.getByIdOrThrow(input.cardId());
 
-            BigDecimal averageAmount = transactionService.findAverageAmountByUserId(input.userId());
+            BigDecimal rawAverageAmount = transactionService.findAverageAmountByUserId(input.userId());
+            // When there is no transaction history, use the current amount as the
+            // fallback average.  This matches the training data where first
+            // transactions use the user's baseline amount (≈ same magnitude).
+            BigDecimal averageAmount = rawAverageAmount.compareTo(BigDecimal.ZERO) > 0
+                    ? rawAverageAmount
+                    : input.amount();
             float amountToAverageRatio = getAmountToAverageRatio(input.amount(), averageAmount);
             boolean hasCountryMismatch = !userEntity.getHomeCountryCode().equals(input.countryCode());
             boolean isDeviceTrusted = trustedDeviceService.existsById(input.deviceId());
@@ -122,7 +128,7 @@ public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureReques
     }
 
     private static float getAmountToAverageRatio(BigDecimal amount, BigDecimal averageAmount) {
-        BigDecimal divisor = BigDecimal.ONE.max(averageAmount);
-        return amount.divide(divisor, RoundingMode.HALF_UP).floatValue();
+        BigDecimal divisor = averageAmount.max(BigDecimal.ONE);
+        return amount.divide(divisor, 4, RoundingMode.HALF_UP).floatValue();
     }
 }

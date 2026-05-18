@@ -25,6 +25,7 @@ public class FeatureCacheService {
     private static final long ONE_HOUR_IN_SECONDS = 60L * 60L;
     private static final long EPOCH_MILLIS_THRESHOLD = 10_000_000_000L;
     private static final long ONE_SECOND_IN_MILLIS = 1_000L;
+    private static final long DEFAULT_SECONDS_SINCE_LAST = 30L * 24L * 3600L; // 30 days — matches training data
 
     private final RedisTemplate<String, String> redisTemplate;
     private final RedisProperties redisProperties;
@@ -85,7 +86,7 @@ public class FeatureCacheService {
             String lastTimestamp = redisTemplate.opsForValue().get(lastTransactionKey);
 
             if (lastTimestamp == null) {
-                return Long.MAX_VALUE;
+                return DEFAULT_SECONDS_SINCE_LAST;
             }
 
             long lastTransactionTime = Long.parseLong(lastTimestamp);
