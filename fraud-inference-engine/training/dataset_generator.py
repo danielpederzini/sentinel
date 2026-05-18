@@ -416,6 +416,7 @@ class UserState:
     transaction_count: int = 0
     escalation_score: float = 0.0
     last_amount: float = 0.0
+    legit_rapid_streak: int = 0
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -800,8 +801,8 @@ def _choose_gap_seconds(
     if is_fraud:
         return int(np.clip(rng.lognormal(mean=math.log(45 * 60), sigma=1.2), 120, 36 * 3600))
 
-    if float(rng.random()) < 0.12:
-        return int(rng.integers(30, 600))
+    if float(rng.random()) < 0.04:
+        return int(rng.integers(60, 600))
 
     cadence = 60.0 * 60.0 * float(np.clip(rng.lognormal(mean=math.log(14.0), sigma=0.7), 1.5, 48.0))
     cadence /= max(0.35, activity_weight)
@@ -907,6 +908,21 @@ def _generate_row(
         if state.last_timestamp is not None
         else int(30 * 24 * 3600)
     )
+
+    # Cap legit rapid streaks: if a legit user has had 4+ rapid transactions
+    # in a row (gap < 600s), force a longer gap to prevent legit users from
+    # looking like fraud bursts.
+    if not is_fraud:
+        if seconds_since_last < 600:
+            state.legit_rapid_streak += 1
+            if state.legit_rapid_streak >= 4:
+                extra_gap = int(rng.integers(3600, 14400))
+                event_timestamp = event_timestamp + timedelta(seconds=extra_gap)
+                seconds_since_last += extra_gap
+                state.legit_rapid_streak = 0
+        else:
+            state.legit_rapid_streak = 0
+
     user_transaction_count_5m = int(len(state.recent_timestamps_5m))
     user_transaction_count_1h = int(len(state.recent_timestamps_1h))
 
@@ -952,6 +968,104 @@ def _generate_row(
         "card_type": card_type,
         "distinct_merchant_count_1hour": int(distinct_merchant_count_1hour),
         "is_fraud": bool(is_fraud),
+        # Pass BURST signals back so the generation loop can queue follow-up rows
+        "_burst_signals": dict(signals) if is_fraud and FraudSignal.BURST in signals else None,
+    }
+
+
+def _generate_burst_row(
+    state: UserState,
+    rng: np.random.Generator,
+    signals: dict[FraudSignal, float],
+    ip_registry: list[IpRecord],
+    merchant_registry: list[MerchantRecord],
+    fraud_ring_indices: list[int],
+    high_risk_merchant_indices: list[int],
+    simulation_start: datetime,
+) -> dict[str, Any]:
+    """Generate a follow-up fraud transaction as part of a burst sequence."""
+    profile = state.profile
+    state.escalation_score = min(1.0, state.escalation_score + float(rng.uniform(0.01, 0.04)))
+
+    event_timestamp = _build_event_timestamp(state, rng, True, signals)
+    _prune_windows(state, event_timestamp)
+    days_elapsed = (event_timestamp - simulation_start).total_seconds() / 86400.0
+
+    user_average_amount = (
+        state.running_amount_sum / state.running_amount_count
+        if state.running_amount_count > 0
+        else profile.baseline_amount
+    )
+
+    ip_idx = _pick_ip_index(rng, profile, True, signals, fraud_ring_indices, len(ip_registry))
+    merchant_idx = _pick_merchant_index(rng, profile, True, signals, high_risk_merchant_indices, len(merchant_registry))
+    ip_risk_score = _sample_ip_risk(rng, ip_registry[ip_idx], days_elapsed)
+    merchant_risk_score = _sample_merchant_risk(rng, merchant_registry[merchant_idx], days_elapsed)
+
+    amount = _sample_amount(rng, user_average_amount, True, signals, profile.segment)
+    day_of_year = event_timestamp.timetuple().tm_yday
+    amount = _clip_amount(_apply_seasonal_variation(rng, amount, day_of_year))
+
+    is_device_trusted = _sample_device_trusted(rng, profile.trusted_device_rate, True, signals)
+    has_country_mismatch = _sample_country_mismatch(rng, profile.travel_rate, True, signals, profile.segment)
+    actual_card_age = max(1, int((event_timestamp - profile.card_creation_date).days))
+    card_age_days = _sample_card_age(rng, actual_card_age, True, signals)
+    hour_of_day = _sample_hour_of_day(rng, profile.hour_preference, True, signals)
+    event_timestamp = event_timestamp.replace(
+        hour=hour_of_day,
+        minute=int(rng.integers(0, 60)),
+        second=int(rng.integers(0, 60)),
+        microsecond=0,
+    )
+
+    amount_to_average_ratio = float(amount / max(1.0, user_average_amount))
+    seconds_since_last = (
+        int((event_timestamp - state.last_timestamp).total_seconds())
+        if state.last_timestamp is not None
+        else int(30 * 24 * 3600)
+    )
+    user_transaction_count_5m = int(len(state.recent_timestamps_5m))
+    user_transaction_count_1h = int(len(state.recent_timestamps_1h))
+    amount_velocity_1hour = round(float(sum(state.recent_amounts_1h)) + amount, 2)
+
+    user_account_age_days = max(1, int((event_timestamp - profile.account_creation_date).days))
+    day_of_week = event_timestamp.isoweekday()
+    merchant_category = merchant_registry[merchant_idx].category
+    card_type = profile.card_type
+    distinct_merchant_count_1hour = len(set(state.recent_merchants_1h)) + (1 if merchant_idx not in set(state.recent_merchants_1h) else 0)
+
+    state.running_amount_sum += amount
+    state.running_amount_count += 1
+    state.last_timestamp = event_timestamp
+    state.last_amount = amount
+    state.transaction_count += 1
+    state.recent_timestamps_5m.append(event_timestamp)
+    state.recent_timestamps_1h.append(event_timestamp)
+    state.recent_amounts_1h.append(amount)
+    state.recent_merchants_1h.append(merchant_idx)
+
+    return {
+        "transaction_id": _generate_transaction_id(),
+        "user_id": state.profile.user_id,
+        "amount": round(amount, 2),
+        "user_average_amount": round(user_average_amount, 2),
+        "user_transaction_count_5min": user_transaction_count_5m,
+        "user_transaction_count_1hour": user_transaction_count_1h,
+        "seconds_since_last_transaction": seconds_since_last,
+        "amount_velocity_1hour": amount_velocity_1hour,
+        "merchant_risk_score": merchant_risk_score,
+        "is_device_trusted": bool(is_device_trusted),
+        "has_country_mismatch": bool(has_country_mismatch),
+        "amount_to_average_ratio": round(amount_to_average_ratio, 4),
+        "hour_of_day": hour_of_day,
+        "ip_risk_score": ip_risk_score,
+        "card_age_days": int(card_age_days),
+        "user_account_age_days": int(user_account_age_days),
+        "day_of_week": int(day_of_week),
+        "merchant_category": merchant_category,
+        "card_type": card_type,
+        "distinct_merchant_count_1hour": int(distinct_merchant_count_1hour),
+        "is_fraud": True,
     }
 
 
@@ -1198,18 +1312,44 @@ def simulate(
     activity_weights = _normalize_weights(np.array([p.activity_weight for p in profiles], dtype=float))
     rows: list[dict[str, Any]] = []
 
-    for _ in tqdm(range(row_count), desc="Generating transactions", unit="tx"):
-        selected_profile = profiles[int(rng.choice(len(profiles), p=activity_weights))]
-        user_state = states[selected_profile.user_id]
+    # Burst queue: when a fraud BURST is triggered, we queue additional
+    # consecutive transactions for the same user so the model sees realistic
+    # high transaction-count / low seconds-since-last patterns.
+    burst_queue: list[tuple[UserProfile, dict[FraudSignal, float]]] = []
 
-        row = _generate_row(
-            user_state, rng,
-            fraud_rate=fraud_rate, stealth_rate=stealth_rate,
-            ip_registry=ip_registry, merchant_registry=merchant_registry,
-            fraud_ring_indices=fraud_ring_indices,
-            high_risk_merchant_indices=high_risk_merchant_indices,
-            simulation_start=simulation_start,
-        )
+    for _ in tqdm(range(row_count), desc="Generating transactions", unit="tx"):
+        if burst_queue:
+            # Continue an ongoing burst sequence for the same user
+            burst_profile, burst_signals = burst_queue.pop(0)
+            selected_profile = burst_profile
+            user_state = states[selected_profile.user_id]
+            row = _generate_burst_row(
+                user_state, rng,
+                signals=burst_signals,
+                ip_registry=ip_registry, merchant_registry=merchant_registry,
+                fraud_ring_indices=fraud_ring_indices,
+                high_risk_merchant_indices=high_risk_merchant_indices,
+                simulation_start=simulation_start,
+            )
+        else:
+            selected_profile = profiles[int(rng.choice(len(profiles), p=activity_weights))]
+            user_state = states[selected_profile.user_id]
+
+            row = _generate_row(
+                user_state, rng,
+                fraud_rate=fraud_rate, stealth_rate=stealth_rate,
+                ip_registry=ip_registry, merchant_registry=merchant_registry,
+                fraud_ring_indices=fraud_ring_indices,
+                high_risk_merchant_indices=high_risk_merchant_indices,
+                simulation_start=simulation_start,
+            )
+
+            # If this fraud row triggered a BURST, queue follow-up transactions
+            if row["is_fraud"] and row.get("_burst_signals"):
+                burst_signals = row.pop("_burst_signals")
+                burst_count = int(rng.integers(5, 25))
+                for _ in range(burst_count):
+                    burst_queue.append((selected_profile, burst_signals))
 
         # Test-then-large: for certain fraud types, prepend a small probe transaction.
         # The probe mimics a real-world pattern where fraudsters validate a stolen card
@@ -1250,6 +1390,7 @@ def simulate(
                 "is_fraud": True,
             })
 
+        row.pop("_burst_signals", None)
         rows.append(row)
 
     data = pd.DataFrame.from_records(rows, columns=_OUTPUT_COLUMNS)
