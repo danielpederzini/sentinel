@@ -5,3 +5,4 @@ lightgbm==4.6.0
 scikit-learn==1.5.2
 joblib==1.4.2
 pydantic==2.9.2
+shap==0.46.0

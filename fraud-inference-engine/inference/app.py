@@ -6,6 +6,7 @@ import logging
 import joblib
 import lightgbm as lgb
 import numpy as np
+import shap
 import uvicorn
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
@@ -100,10 +101,18 @@ def _build_explainability(
     feature_vector: np.ndarray,
     model: lgb.LGBMClassifier,
     feature_names: list[str],
+    explainer: shap.TreeExplainer,
     top_k: int = 5,
 ) -> dict:
     base_values = _build_feature_values(request)
-    contributions = model.predict(feature_vector, pred_contrib=True)[0]
+    shap_values = explainer.shap_values(feature_vector)
+
+    # For binary classification, shap_values is a list of two arrays
+    # (one per class). Use class 1 (fraud) contributions.
+    if isinstance(shap_values, list):
+        contributions = shap_values[1][0]
+    else:
+        contributions = shap_values[0]
 
     feature_contributions = []
     for index, feature_name in enumerate(feature_names):
@@ -137,6 +146,7 @@ async def lifespan(app: FastAPI):
         _state["threshold"] = metrics["threshold"]
         _state["version"] = version
         _state["feature_names"] = feature_names
+        _state["explainer"] = shap.TreeExplainer(model)
         print(f"Loaded LightGBM model version {version} with threshold {_state['threshold']:.4f}")
     except ModelLoadException as exception:
         _error_logger.error("Model loading failed during startup", exception)
@@ -238,7 +248,7 @@ def score(request: FraudPredictionRequest) -> FraudPredictionResponse:
             risk_level=_find_risk_level(fraud_probability, _state["threshold"]),
             model_version=_state["version"],
             explainability=_build_explainability(
-                request, feature_vector, model, feature_names,
+                request, feature_vector, model, feature_names, _state["explainer"],
             ),
         )
         return response
