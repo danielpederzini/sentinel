@@ -9,6 +9,7 @@ import numpy as np
 import optuna
 import pandas as pd
 from sklearn.isotonic import IsotonicRegression
+from sklearn.inspection import permutation_importance
 from sklearn.metrics import (
     average_precision_score,
     classification_report,
@@ -318,12 +319,23 @@ def train_model(
     print(f"  Accuracy:  {metrics['accuracy']:.4f}")
     print(f"  Confusion: TN={cm['tn']}  FP={cm['fp']}  FN={cm['fn']}  TP={cm['tp']}")
 
-    # ── Feature importance ──
+    # ── Feature importance (gain) ──
     importances = final_model.feature_importances_
     sorted_idx = np.argsort(importances)[::-1]
     print("\nTop-15 feature importances (gain):")
     for i in sorted_idx[:15]:
         print(f"  {feature_names[i]:35s} {importances[i]:>6d}")
+
+    # ── Permutation importance ──
+    print("\nComputing permutation importance (this may take a moment)...")
+    perm_result = permutation_importance(
+        final_model, X_test, y_test,
+        n_repeats=10, random_state=42, scoring="average_precision",
+    )
+    perm_sorted_idx = np.argsort(perm_result.importances_mean)[::-1]
+    print("\nTop-15 feature importances (permutation, PR-AUC drop):")
+    for i in perm_sorted_idx[:15]:
+        print(f"  {feature_names[i]:35s} {perm_result.importances_mean[i]:.4f} ± {perm_result.importances_std[i]:.4f}")
 
     # ── Save ──
     os.makedirs(model_output_directory, exist_ok=True)
