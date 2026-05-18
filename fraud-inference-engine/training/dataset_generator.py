@@ -801,7 +801,7 @@ def _choose_gap_seconds(
     if is_fraud:
         return int(np.clip(rng.lognormal(mean=math.log(45 * 60), sigma=1.2), 120, 36 * 3600))
 
-    if float(rng.random()) < 0.04:
+    if float(rng.random()) < 0.06:
         return int(rng.integers(60, 600))
 
     cadence = 60.0 * 60.0 * float(np.clip(rng.lognormal(mean=math.log(14.0), sigma=0.7), 1.5, 48.0))
@@ -909,13 +909,13 @@ def _generate_row(
         else int(30 * 24 * 3600)
     )
 
-    # Cap legit rapid streaks: if a legit user has had 4+ rapid transactions
+    # Cap legit rapid streaks: if a legit user has had 6+ rapid transactions
     # in a row (gap < 600s), force a longer gap to prevent legit users from
     # looking like fraud bursts.
     if not is_fraud:
         if seconds_since_last < 600:
             state.legit_rapid_streak += 1
-            if state.legit_rapid_streak >= 4:
+            if state.legit_rapid_streak >= 6:
                 extra_gap = int(rng.integers(3600, 14400))
                 event_timestamp = event_timestamp + timedelta(seconds=extra_gap)
                 seconds_since_last += extra_gap
@@ -1316,6 +1316,8 @@ def simulate(
     # consecutive transactions for the same user so the model sees realistic
     # high transaction-count / low seconds-since-last patterns.
     burst_queue: list[tuple[UserProfile, dict[FraudSignal, float]]] = []
+    burst_rows_total = 0
+    max_total_burst_rows = int(row_count * 0.01)
 
     for _ in tqdm(range(row_count), desc="Generating transactions", unit="tx"):
         if burst_queue:
@@ -1331,6 +1333,7 @@ def simulate(
                 high_risk_merchant_indices=high_risk_merchant_indices,
                 simulation_start=simulation_start,
             )
+            burst_rows_total += 1
         else:
             selected_profile = profiles[int(rng.choice(len(profiles), p=activity_weights))]
             user_state = states[selected_profile.user_id]
@@ -1344,10 +1347,13 @@ def simulate(
                 simulation_start=simulation_start,
             )
 
-            # If this fraud row triggered a BURST, queue follow-up transactions
+            # If this fraud row triggered a BURST, queue follow-up transactions.
+            # Cap burst length at 3-10 and hard-cap total burst rows at 1% of
+            # row_count to keep the fraud rate close to the target.
             if row["is_fraud"] and row.get("_burst_signals"):
                 burst_signals = row.pop("_burst_signals")
-                burst_count = int(rng.integers(5, 25))
+                remaining_budget = max(0, max_total_burst_rows - burst_rows_total - len(burst_queue))
+                burst_count = min(int(rng.integers(3, 11)), remaining_budget)
                 for _ in range(burst_count):
                     burst_queue.append((selected_profile, burst_signals))
 
