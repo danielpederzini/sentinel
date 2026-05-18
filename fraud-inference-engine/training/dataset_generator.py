@@ -923,6 +923,19 @@ def _generate_row(
         else:
             state.legit_rapid_streak = 0
 
+    # Cap legit hourly transaction count: if a legit user already has 6+
+    # transactions in the current 1h window (from being randomly selected
+    # multiple times, or from prior fraud burst entries still in the deque),
+    # force a long gap and clear all windowed state so the count resets to 0.
+    if not is_fraud and len(state.recent_timestamps_1h) >= 6:
+        extra_gap = int(rng.integers(7200, 14400))
+        event_timestamp = event_timestamp + timedelta(seconds=extra_gap)
+        seconds_since_last += extra_gap
+        state.recent_timestamps_1h.clear()
+        state.recent_timestamps_5m.clear()
+        state.recent_amounts_1h.clear()
+        state.recent_merchants_1h.clear()
+
     user_transaction_count_5m = int(len(state.recent_timestamps_5m))
     user_transaction_count_1h = int(len(state.recent_timestamps_1h))
 
@@ -998,7 +1011,15 @@ def _generate_burst_row(
     )
 
     ip_idx = _pick_ip_index(rng, profile, True, signals, fraud_ring_indices, len(ip_registry))
-    merchant_idx = _pick_merchant_index(rng, profile, True, signals, high_risk_merchant_indices, len(merchant_registry))
+
+    # Reuse the last merchant 70% of the time during bursts (fraudsters
+    # often hit the same store repeatedly).  Fall back to normal pick for
+    # diversity in the remaining 30%.
+    if state.recent_merchants_1h and float(rng.random()) < 0.70:
+        merchant_idx = state.recent_merchants_1h[-1]
+    else:
+        merchant_idx = _pick_merchant_index(rng, profile, True, signals, high_risk_merchant_indices, len(merchant_registry))
+
     ip_risk_score = _sample_ip_risk(rng, ip_registry[ip_idx], days_elapsed)
     merchant_risk_score = _sample_merchant_risk(rng, merchant_registry[merchant_idx], days_elapsed)
 
@@ -1317,7 +1338,9 @@ def simulate(
     # high transaction-count / low seconds-since-last patterns.
     burst_queue: list[tuple[UserProfile, dict[FraudSignal, float]]] = []
     burst_rows_total = 0
-    max_total_burst_rows = int(row_count * 0.01)
+    max_total_burst_rows = int(row_count * 0.05)
+    target_fraud_rows = int(row_count * fraud_rate)
+    total_fraud_rows = 0
 
     for _ in tqdm(range(row_count), desc="Generating transactions", unit="tx"):
         if burst_queue:
@@ -1338,9 +1361,13 @@ def simulate(
             selected_profile = profiles[int(rng.choice(len(profiles), p=activity_weights))]
             user_state = states[selected_profile.user_id]
 
+            # Dynamically reduce fraud rate when we've already generated
+            # enough fraud rows (from base + bursts) to stay near the target.
+            effective_fraud_rate = fraud_rate if total_fraud_rows < target_fraud_rows else 0.0
+
             row = _generate_row(
                 user_state, rng,
-                fraud_rate=fraud_rate, stealth_rate=stealth_rate,
+                fraud_rate=effective_fraud_rate, stealth_rate=stealth_rate,
                 ip_registry=ip_registry, merchant_registry=merchant_registry,
                 fraud_ring_indices=fraud_ring_indices,
                 high_risk_merchant_indices=high_risk_merchant_indices,
@@ -1348,14 +1375,17 @@ def simulate(
             )
 
             # If this fraud row triggered a BURST, queue follow-up transactions.
-            # Cap burst length at 3-10 and hard-cap total burst rows at 1% of
-            # row_count to keep the fraud rate close to the target.
+            # Cap burst length at 3-10 and hard-cap total burst rows at 5% of
+            # row_count to create enough high-count fraud examples.
             if row["is_fraud"] and row.get("_burst_signals"):
                 burst_signals = row.pop("_burst_signals")
                 remaining_budget = max(0, max_total_burst_rows - burst_rows_total - len(burst_queue))
                 burst_count = min(int(rng.integers(3, 11)), remaining_budget)
                 for _ in range(burst_count):
                     burst_queue.append((selected_profile, burst_signals))
+
+        if row.get("is_fraud"):
+            total_fraud_rows += 1
 
         # Test-then-large: for certain fraud types, prepend a small probe transaction.
         # The probe mimics a real-world pattern where fraudsters validate a stolen card
