@@ -165,7 +165,7 @@ def _optuna_objective(
     categorical_indices: list[int] | None = None,
 ) -> float:
     params = {
-        "n_estimators": 3000,
+        "n_estimators": 100,
         "max_depth": trial.suggest_int("max_depth", 4, 10),
         "num_leaves": trial.suggest_int("num_leaves", 15, 127),
         "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.2, log=True),
@@ -185,7 +185,7 @@ def _optuna_objective(
     model.fit(
         X_train, y_train,
         eval_set=[(X_val, y_val)],
-        callbacks=[lgb.early_stopping(100, verbose=False), lgb.log_evaluation(period=0)],
+        callbacks=[lgb.early_stopping(50, verbose=True), lgb.log_evaluation(period=0)],
         **fit_kwargs,
     )
 
@@ -231,7 +231,7 @@ def train_model(
     # ── Hyperparameter tuning with Optuna ──
     if not skip_tuning:
         print(f"\nRunning Optuna hyperparameter search ({n_trials} trials)...")
-        optuna.logging.set_verbosity(optuna.logging.WARNING)
+        optuna.logging.set_verbosity(optuna.logging.INFO)
         study = optuna.create_study(direction="maximize", study_name="lgbm_fraud")
 
         study.optimize(
@@ -251,12 +251,12 @@ def train_model(
             "n_estimators": n_estimators,
             "max_depth": max_depth,
             "learning_rate": learning_rate,
-            "num_leaves": 63,
-            "min_child_samples": 50,
-            "subsample": 0.8,
-            "colsample_bytree": 0.7,
-            "reg_alpha": 0.1,
-            "reg_lambda": 1.0,
+            "num_leaves": 108,
+            "min_child_samples": 135,
+            "subsample": 0.556,
+            "colsample_bytree": 0.535,
+            "reg_alpha": 1.677,
+            "reg_lambda": 9.293,
         }
         print(f"\nSkipping tuning, using default params: {best_params}")
 
@@ -348,8 +348,8 @@ def main() -> None:
     parser.add_argument("model_output_directory", type=str, help="Path to save the trained model.")
     parser.add_argument("model_version", type=str, help="Version of the model.")
     parser.add_argument("--n-estimators", type=int, default=5_000,help="Maximum number of boosting rounds (default: 5000).")
-    parser.add_argument("--max-depth", type=int, default=7, help="Maximum tree depth (default: 7).")
-    parser.add_argument("--learning-rate", type=float, default=0.05, help="Boosting learning rate (default: 0.05).")
+    parser.add_argument("--max-depth", type=int, default=10, help="Maximum tree depth (default: 10).")
+    parser.add_argument("--learning-rate", type=float, default=0.1607, help="Boosting learning rate (default: 0.1607).")
     parser.add_argument("--early-stopping-rounds", type=int, default=100, help="Stop if no improvement after this many rounds (default: 100).")
     parser.add_argument("--beta", type=float, default=2.0, help="F-beta threshold optimization (default: 2.0).")
     parser.add_argument("--device", type=str, default="gpu", help="Device for training: 'cpu' or 'gpu' (default: gpu).")
