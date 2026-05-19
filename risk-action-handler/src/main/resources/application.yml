@@ -6,7 +6,12 @@ spring:
     name: risk-action-handler
   data:
     mongodb:
-      uri: ${SPRING_DATA_MONGODB_URI:mongodb://admin:admin@localhost:27017/sentinel?authSource=admin}
+      host: ${MONGODB_HOST:localhost}
+      port: ${MONGODB_PORT:27017}
+      database: sentinel
+      username: admin
+      password: admin
+      authentication-database: admin
   mail:
     host: ${EMAIL_HOST:smtp.gmail.com}
     port: ${EMAIL_PORT:587}
