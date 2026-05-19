@@ -29,7 +29,7 @@ from shared.schemas import (
 
 MODELS_DIRECTORY = os.environ.get(
     "MODELS_DIRECTORY",
-    os.path.join(os.path.dirname(__file__), "..", "training", "models"),
+    os.path.join(os.path.dirname(__file__), "models"),
 )
 
 _state: dict = {}
