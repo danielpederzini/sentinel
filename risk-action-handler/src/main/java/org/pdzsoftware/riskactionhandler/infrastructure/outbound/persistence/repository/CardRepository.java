@@ -1,8 +1,0 @@
-package org.pdzsoftware.riskactionhandler.infrastructure.outbound.persistence.repository;
-
-import org.pdzsoftware.riskactionhandler.infrastructure.outbound.persistence.entity.CardEntity;
-import org.springframework.data.jpa.repository.JpaRepository;
-
-public interface CardRepository extends JpaRepository<CardEntity, String> {
-}
-

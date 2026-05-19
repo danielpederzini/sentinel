@@ -6,6 +6,7 @@ import org.pdzsoftware.antifraudorchestrator.infrastructure.outbound.client.Feat
 import org.pdzsoftware.antifraudorchestrator.infrastructure.outbound.client.InferenceEngineClient;
 import org.pdzsoftware.antifraudorchestrator.infrastructure.outbound.client.dto.FraudFeatureResponse;
 import org.pdzsoftware.antifraudorchestrator.infrastructure.outbound.client.dto.FraudPredictionResponse;
+import org.pdzsoftware.antifraudorchestrator.infrastructure.outbound.client.dto.PersistTransactionRequest;
 import org.pdzsoftware.antifraudorchestrator.infrastructure.inbound.consumer.dto.TransactionCreatedMessage;
 import org.pdzsoftware.antifraudorchestrator.infrastructure.outbound.producer.dto.TransactionScoredMessage;
 import org.pdzsoftware.antifraudorchestrator.domain.exception.TransactionOrchestrationException;
@@ -28,6 +29,10 @@ public class ProcessTransactionUseCase implements VoidUseCase<ProcessTransaction
 		try {
 			FraudFeatureResponse features = featureManagerClient.calculateFraudFeatures(payload);
 			FraudPredictionResponse prediction = inferenceEngineClient.scoreTransaction(features);
+
+			PersistTransactionRequest persistRequest = PersistTransactionRequest.from(payload, features, prediction);
+			featureManagerClient.persistTransaction(persistRequest);
+
 			TransactionScoredMessage scoredMessage = TransactionScoredMessage.from(payload, features, prediction);
 
 			log.info("Processed transaction {} | key: {} | riskLevel: {} | fraudProbability: {} | modelVersion: {} | explainability: {}",

@@ -17,4 +17,9 @@ public class UserService {
         return userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException(String.format("User with ID %s not found", id)));
     }
+
+    @Cacheable(cacheNames = "usersExists", key = "#a0", condition = "#a0 != null")
+    public boolean existsById(String id) {
+        return userRepository.existsById(id);
+    }
 }

@@ -46,4 +46,10 @@ public class UserEntity {
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<TransactionEntity> transactions;
+
+    public static UserEntity fromId(String id) {
+        return UserEntity.builder()
+                .id(id)
+                .build();
+    }
 }
