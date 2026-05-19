@@ -15,6 +15,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.pdzsoftware.featuremanager.domain.enums.DeviceType;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -42,4 +43,14 @@ public class TrustedDeviceEntity {
 
     @OneToMany(mappedBy = "trustedDevice", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<TransactionEntity> transactions;
+
+    public static TrustedDeviceEntity fromId(String id) {
+        return TrustedDeviceEntity.builder()
+                .id(id)
+                .build();
+    }
+
+    public static TrustedDeviceEntity fromNullableId(String id) {
+        return StringUtils.hasText(id) ? fromId(id) : null;
+    }
 }

@@ -2,6 +2,7 @@ package org.pdzsoftware.featuremanager.application.service;
 
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
+import org.pdzsoftware.featuremanager.infrastructure.outbound.persistence.entity.TransactionEntity;
 import org.pdzsoftware.featuremanager.infrastructure.outbound.persistence.repository.TransactionRepository;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -12,6 +13,11 @@ import java.math.BigDecimal;
 @RequiredArgsConstructor
 public class TransactionService {
     private final TransactionRepository transactionRepository;
+
+    public String save(TransactionEntity transaction) {
+        TransactionEntity savedTransaction = transactionRepository.save(transaction);
+        return savedTransaction.getId();
+    }
 
     @Cacheable(cacheNames = "userAverageAmounts", key = "#a0", condition = "#a0 != null")
     public BigDecimal findAverageAmountByUserId(String userId) {

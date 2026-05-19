@@ -38,7 +38,7 @@ public class TransactionEntity {
     @Enumerated(EnumType.STRING)
     private CountryCode countryCode;
 
-    @Column(nullable = false)
+    @Column
     private String ipAddress;
 
     @Column(nullable = false)
@@ -55,6 +55,9 @@ public class TransactionEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     private CardEntity card;
+
+    @OneToOne(mappedBy = "transaction", cascade = CascadeType.ALL, orphanRemoval = true)
+    private TransactionFeatureVectorEntity featureVector;
 
     @OneToOne(mappedBy = "transaction", cascade = CascadeType.ALL, orphanRemoval = true)
     private TransactionPredictionEntity prediction;

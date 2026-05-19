@@ -45,4 +45,10 @@ public class MerchantEntity {
 
     @OneToMany(mappedBy = "merchant", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<TransactionEntity> transactions;
+
+    public static MerchantEntity fromId(String id) {
+        return MerchantEntity.builder()
+                .id(id)
+                .build();
+    }
 }

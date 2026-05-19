@@ -17,4 +17,9 @@ public class CardService {
         return cardRepository.findById(id)
                 .orElseThrow(() -> new CardNotFoundException(String.format("Card with ID %s not found", id)));
     }
+
+    @Cacheable(cacheNames = "cardsExists", key = "#a0", condition = "#a0 != null")
+    public boolean existsById(String id) {
+        return cardRepository.existsById(id);
+    }
 }

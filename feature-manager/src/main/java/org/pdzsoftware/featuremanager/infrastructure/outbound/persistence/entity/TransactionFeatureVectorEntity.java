@@ -1,4 +1,4 @@
-package org.pdzsoftware.riskactionhandler.infrastructure.outbound.persistence.entity;
+package org.pdzsoftware.featuremanager.infrastructure.outbound.persistence.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -13,8 +13,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.FraudFeaturesMessage;
-import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.TransactionScoredMessage;
 
 import java.math.BigDecimal;
 
@@ -124,42 +122,4 @@ public class TransactionFeatureVectorEntity {
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "transaction_id")
     private TransactionEntity transaction;
-
-    public static TransactionFeatureVectorEntity from(TransactionScoredMessage input) {
-        FraudFeaturesMessage featuresMessage = input.featuresMessage();
-
-        return TransactionFeatureVectorEntity.builder()
-                .transactionId(input.transactionId())
-                .amount(input.amount())
-                .userAverageAmount(featuresMessage.userAverageAmount())
-                .userTransactionCount5Min(featuresMessage.userTransactionCount5Min())
-                .userTransactionCount1Hour(featuresMessage.userTransactionCount1Hour())
-                .secondsSinceLastTransaction(featuresMessage.secondsSinceLastTransaction())
-                .merchantRiskScore(featuresMessage.merchantRiskScore())
-                .isDeviceTrusted(featuresMessage.isDeviceTrusted())
-                .hasCountryMismatch(featuresMessage.hasCountryMismatch())
-                .amountToAverageRatio(featuresMessage.amountToAverageRatio())
-                .hourOfDay(featuresMessage.hourOfDay())
-                .ipRiskScore(featuresMessage.ipRiskScore())
-                .cardAgeDays(featuresMessage.cardAgeDays())
-                .amountVelocity1Hour(featuresMessage.amountVelocity1Hour())
-                .userAccountAgeDays(featuresMessage.userAccountAgeDays())
-                .dayOfWeek(featuresMessage.dayOfWeek())
-                .merchantCategory(featuresMessage.merchantCategory())
-                .cardType(featuresMessage.cardType())
-                .distinctMerchantCount1Hour(featuresMessage.distinctMerchantCount1Hour())
-                .logAmount(featuresMessage.logAmount())
-                .logSecondsSinceLastTransaction(featuresMessage.logSecondsSinceLastTransaction())
-                .logVelocity1Hour(featuresMessage.logVelocity1Hour())
-                .amountTimesMerchantRisk(featuresMessage.amountTimesMerchantRisk())
-                .riskScoreProduct(featuresMessage.riskScoreProduct())
-                .ipDeviceRisk(featuresMessage.ipDeviceRisk())
-                .countryIpRisk(featuresMessage.countryIpRisk())
-                .velocityAmountInteraction(featuresMessage.velocityAmountInteraction())
-                .recencyVelocity(featuresMessage.recencyVelocity())
-                .amountDeviation(featuresMessage.amountDeviation())
-                .isNight(featuresMessage.isNight())
-                .velocityIntensity(featuresMessage.velocityIntensity())
-                .build();
-    }
 }

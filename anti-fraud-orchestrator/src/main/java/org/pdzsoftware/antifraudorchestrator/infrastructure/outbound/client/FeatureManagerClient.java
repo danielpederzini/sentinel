@@ -2,6 +2,7 @@ package org.pdzsoftware.antifraudorchestrator.infrastructure.outbound.client;
 
 import org.pdzsoftware.antifraudorchestrator.infrastructure.outbound.client.dto.FraudFeatureRequest;
 import org.pdzsoftware.antifraudorchestrator.infrastructure.outbound.client.dto.FraudFeatureResponse;
+import org.pdzsoftware.antifraudorchestrator.infrastructure.outbound.client.dto.PersistTransactionRequest;
 import org.pdzsoftware.antifraudorchestrator.infrastructure.inbound.consumer.dto.TransactionCreatedMessage;
 import org.pdzsoftware.antifraudorchestrator.domain.exception.FeatureManagerClientException;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -15,6 +16,7 @@ import java.util.Objects;
 @Component
 public class FeatureManagerClient {
 	private static final String FRAUD_FEATURES_ENDPOINT = "/api/v1/fraud-features";
+	private static final String PERSIST_TRANSACTION_ENDPOINT = "/api/v1/transactions";
 	private final RestClient restClient;
 
 	public FeatureManagerClient(@Qualifier("featureManagerRestClient") RestClient restClient) {
@@ -35,6 +37,20 @@ public class FeatureManagerClient {
 			return Objects.requireNonNull(response, "Feature Manager returned an empty response body");
 		} catch (RestClientException | NullPointerException exception) {
 			throw new FeatureManagerClientException("Failed to fetch fraud features from Feature Manager", exception);
+		}
+	}
+
+	public void persistTransaction(PersistTransactionRequest request) {
+		try {
+			restClient.post()
+					.uri(PERSIST_TRANSACTION_ENDPOINT)
+					.contentType(MediaType.APPLICATION_JSON)
+					.body(request)
+					.retrieve()
+					.toBodilessEntity();
+		} catch (RestClientException exception) {
+			throw new FeatureManagerClientException(String.format(
+					"Failed to persist transaction %s via Feature Manager", request.transactionId()), exception);
 		}
 	}
 }

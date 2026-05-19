@@ -39,4 +39,10 @@ public class CardEntity {
 
     @OneToMany(mappedBy = "card", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<TransactionEntity> transactions;
+
+    public static CardEntity fromId(String id) {
+        return CardEntity.builder()
+                .id(id)
+                .build();
+    }
 }

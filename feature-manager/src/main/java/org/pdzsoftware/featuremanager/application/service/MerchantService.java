@@ -17,4 +17,9 @@ public class MerchantService {
         return merchantRepository.findById(id)
                 .orElseThrow(() -> new MerchantNotFoundException(String.format("Merchant with ID %s not found", id)));
     }
+
+    @Cacheable(cacheNames = "merchantsExists", key = "#a0", condition = "#a0 != null")
+    public boolean existsById(String id) {
+        return merchantRepository.existsById(id);
+    }
 }
