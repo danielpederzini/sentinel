@@ -3,6 +3,8 @@ package org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.pdzsoftware.riskactionhandler.application.usecase.NotifyRiskUseCase;
+import org.pdzsoftware.riskactionhandler.domain.enums.RiskLevel;
 import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.TransactionScoredMessage;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
@@ -11,6 +13,7 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class TransactionConsumer {
+    private final NotifyRiskUseCase notifyRiskUseCase;
 
     @KafkaListener(
             topics = "#{@kafkaConsumerProperties.transactionsScoredTopic}",
@@ -22,5 +25,9 @@ public class TransactionConsumer {
                 payload.transactionId(),
                 payload.predictionMessage().riskLevel(),
                 payload.predictionMessage().fraudProbability());
+
+        if (RiskLevel.HIGH.equals(payload.predictionMessage().riskLevel())) {
+            notifyRiskUseCase.execute(payload);
+        }
     }
 }
