@@ -18,16 +18,16 @@ public class NotifyRiskUseCase {
     public void execute(TransactionScoredMessage message) {
         try {
             String transactionId = message.transactionId();
-            
+
             String llmExplanation = llmClient.getFraudExplanation(message);
             String emailContent = EmailContentBuilder.buildFraudAlertEmail(message, llmExplanation);
             String subject = "Fraud Alert — Transaction " + transactionId;
 
             emailClient.sendEmail(transactionId, subject, emailContent);
             log.info("Sent fraud alert notification for transaction {}", transactionId);
-        } catch (Exception e) {
+        } catch (RuntimeException exception) {
             log.error("Failed to send notification for transaction {}: {}",
-                    message.transactionId(), e.getMessage(), e);
+                    message.transactionId(), exception.getMessage(), exception);
         }
     }
 }
