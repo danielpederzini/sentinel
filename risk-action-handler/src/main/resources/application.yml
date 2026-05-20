@@ -4,14 +4,6 @@ server:
 spring:
   application:
     name: risk-action-handler
-  data:
-    mongodb:
-      host: ${MONGODB_HOST:localhost}
-      port: ${MONGODB_PORT:27017}
-      database: sentinel
-      username: admin
-      password: admin
-      authentication-database: admin
   mail:
     host: ${EMAIL_HOST:smtp.gmail.com}
     port: ${EMAIL_PORT:587}

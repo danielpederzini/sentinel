@@ -2,29 +2,32 @@ package org.pdzsoftware.riskactionhandler.application.usecase;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.pdzsoftware.riskactionhandler.application.service.NotificationService;
-import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.FraudPredictionMessage;
+import org.pdzsoftware.riskactionhandler.application.util.EmailContentBuilder;
 import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.TransactionScoredMessage;
-import org.pdzsoftware.riskactionhandler.infrastructure.outbound.persistence.document.NotificationDocument;
+import org.pdzsoftware.riskactionhandler.infrastructure.outbound.client.EmailClient;
+import org.pdzsoftware.riskactionhandler.infrastructure.outbound.client.LlmClient;
 import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class NotifyRiskUseCase {
-    private final NotificationService notificationService;
+    private final LlmClient llmClient;
+    private final EmailClient emailClient;
 
     public void execute(TransactionScoredMessage message) {
-        FraudPredictionMessage prediction = message.predictionMessage();
+        try {
+            String transactionId = message.transactionId();
+            
+            String llmExplanation = llmClient.getFraudExplanation(message);
+            String emailContent = EmailContentBuilder.buildFraudAlertEmail(message, llmExplanation);
+            String subject = "Fraud Alert — Transaction " + transactionId;
 
-        NotificationDocument notification = NotificationDocument.builder()
-                .transactionId(message.transactionId())
-                .riskLevel(prediction.riskLevel())
-                .fraudProbability(prediction.fraudProbability())
-                .scoredPayload(message)
-                .build();
-
-        notificationService.save(notification);
-        log.info("Persisted PENDING notification for transaction {}", message.transactionId());
+            emailClient.sendEmail(transactionId, subject, emailContent);
+            log.info("Sent fraud alert notification for transaction {}", transactionId);
+        } catch (Exception e) {
+            log.error("Failed to send notification for transaction {}: {}",
+                    message.transactionId(), e.getMessage(), e);
+        }
     }
 }
