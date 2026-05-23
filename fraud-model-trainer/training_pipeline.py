@@ -28,6 +28,7 @@ from data_loader import load_data
 BASE_FEATURES = [
     "amount",
     "user_average_amount",
+    "user_historical_transaction_count",
     "user_transaction_count_5min",
     "user_transaction_count_1hour",
     "seconds_since_last_transaction",
@@ -111,6 +112,192 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     return out
+
+
+def _print_pretraining_reports(data: pd.DataFrame) -> None:
+    print("\nPre-training data checks")
+    print(f"  Rows: {len(data)}, fraud_rate={data['is_fraud'].mean():.4f}")
+
+    amount_bucket = pd.cut(
+        data["amount"],
+        bins=[0, 100, 1_000, 10_000, 100_000, np.inf],
+        labels=["<=100", "100-1k", "1k-10k", "10k-100k", ">100k"],
+        include_lowest=True,
+    )
+    ratio_bucket = pd.cut(
+        data["amount_to_average_ratio"],
+        bins=[0, 1.1, 2, 5, 20, np.inf],
+        labels=["<=1.1", "1.1-2", "2-5", "5-20", ">20"],
+        include_lowest=True,
+    )
+    no_history = data["user_historical_transaction_count"].fillna(0) == 0
+
+    def print_bucket(title: str, bucket: pd.Series) -> None:
+        rates = data.groupby(bucket, observed=False)["is_fraud"].agg(["count", "mean"])
+        print(f"  {title}:")
+        for idx, row in rates.iterrows():
+            print(f"    {str(idx):10s} count={int(row['count']):7d} fraud_rate={row['mean']:.4f}")
+
+    print_bucket("Amount buckets", amount_bucket)
+    print_bucket("Amount/average ratio buckets", ratio_bucket)
+    print(f"  No-history rows: count={int(no_history.sum())}, fraud_rate={data.loc[no_history, 'is_fraud'].mean():.4f}")
+    large_cold = no_history & (data["amount"] >= 10_000)
+    if large_cold.any():
+        print(
+            "  Large no-history rows: "
+            f"count={int(large_cold.sum())}, fraud_rate={data.loc[large_cold, 'is_fraud'].mean():.4f}"
+        )
+
+
+def _probe_rows() -> pd.DataFrame:
+    rows = [
+        {
+            "probe_name": "ordinary_first_transaction",
+            "amount": 85.0,
+            "user_average_amount": 90.0,
+            "user_historical_transaction_count": 0,
+            "user_transaction_count_5min": 0,
+            "user_transaction_count_1hour": 0,
+            "seconds_since_last_transaction": 30 * 24 * 3600,
+            "amount_velocity_1hour": 85.0,
+            "merchant_risk_score": 0.10,
+            "is_device_trusted": True,
+            "has_country_mismatch": False,
+            "amount_to_average_ratio": 0.9444,
+            "hour_of_day": 14,
+            "ip_risk_score": 0.05,
+            "card_age_days": 180,
+            "user_account_age_days": 220,
+            "day_of_week": 2,
+            "merchant_category": "GROCERY",
+            "card_type": "CREDIT",
+            "distinct_merchant_count_1hour": 1,
+        },
+        {
+            "probe_name": "established_moderate_mild_risk",
+            "amount": 450.0,
+            "user_average_amount": 220.0,
+            "user_historical_transaction_count": 24,
+            "user_transaction_count_5min": 0,
+            "user_transaction_count_1hour": 1,
+            "seconds_since_last_transaction": 7200,
+            "amount_velocity_1hour": 450.0,
+            "merchant_risk_score": 0.35,
+            "is_device_trusted": True,
+            "has_country_mismatch": False,
+            "amount_to_average_ratio": 2.0455,
+            "hour_of_day": 16,
+            "ip_risk_score": 0.20,
+            "card_age_days": 500,
+            "user_account_age_days": 700,
+            "day_of_week": 3,
+            "merchant_category": "RESTAURANT",
+            "card_type": "CREDIT",
+            "distinct_merchant_count_1hour": 1,
+        },
+        {
+            "probe_name": "large_first_transaction_low_context_risk",
+            "amount": 1_000_000.0,
+            "user_average_amount": 100.0,
+            "user_historical_transaction_count": 0,
+            "user_transaction_count_5min": 0,
+            "user_transaction_count_1hour": 0,
+            "seconds_since_last_transaction": 30 * 24 * 3600,
+            "amount_velocity_1hour": 1_000_000.0,
+            "merchant_risk_score": 0.12,
+            "is_device_trusted": True,
+            "has_country_mismatch": False,
+            "amount_to_average_ratio": 10_000.0,
+            "hour_of_day": 13,
+            "ip_risk_score": 0.05,
+            "card_age_days": 120,
+            "user_account_age_days": 140,
+            "day_of_week": 2,
+            "merchant_category": "GROCERY",
+            "card_type": "CREDIT",
+            "distinct_merchant_count_1hour": 1,
+        },
+        {
+            "probe_name": "large_first_transaction_untrusted_device",
+            "amount": 1_000_000.0,
+            "user_average_amount": 100.0,
+            "user_historical_transaction_count": 0,
+            "user_transaction_count_5min": 0,
+            "user_transaction_count_1hour": 0,
+            "seconds_since_last_transaction": 30 * 24 * 3600,
+            "amount_velocity_1hour": 1_000_000.0,
+            "merchant_risk_score": 0.12,
+            "is_device_trusted": False,
+            "has_country_mismatch": False,
+            "amount_to_average_ratio": 10_000.0,
+            "hour_of_day": 13,
+            "ip_risk_score": 0.05,
+            "card_age_days": 120,
+            "user_account_age_days": 140,
+            "day_of_week": 2,
+            "merchant_category": "GROCERY",
+            "card_type": "CREDIT",
+            "distinct_merchant_count_1hour": 1,
+        },
+        {
+            "probe_name": "large_first_transaction_risky_context",
+            "amount": 1_000_000.0,
+            "user_average_amount": 100.0,
+            "user_historical_transaction_count": 0,
+            "user_transaction_count_5min": 0,
+            "user_transaction_count_1hour": 0,
+            "seconds_since_last_transaction": 30 * 24 * 3600,
+            "amount_velocity_1hour": 1_000_000.0,
+            "merchant_risk_score": 0.88,
+            "is_device_trusted": False,
+            "has_country_mismatch": True,
+            "amount_to_average_ratio": 10_000.0,
+            "hour_of_day": 2,
+            "ip_risk_score": 0.91,
+            "card_age_days": 3,
+            "user_account_age_days": 5,
+            "day_of_week": 7,
+            "merchant_category": "TRAVEL",
+            "card_type": "CREDIT",
+            "distinct_merchant_count_1hour": 1,
+        },
+        {
+            "probe_name": "small_velocity_burst",
+            "amount": 25.0,
+            "user_average_amount": 65.0,
+            "user_historical_transaction_count": 18,
+            "user_transaction_count_5min": 7,
+            "user_transaction_count_1hour": 9,
+            "seconds_since_last_transaction": 35,
+            "amount_velocity_1hour": 380.0,
+            "merchant_risk_score": 0.25,
+            "is_device_trusted": False,
+            "has_country_mismatch": False,
+            "amount_to_average_ratio": 0.3846,
+            "hour_of_day": 1,
+            "ip_risk_score": 0.35,
+            "card_age_days": 300,
+            "user_account_age_days": 500,
+            "day_of_week": 6,
+            "merchant_category": "OTHER",
+            "card_type": "DEBIT",
+            "distinct_merchant_count_1hour": 5,
+        },
+    ]
+    return pd.DataFrame(rows)
+
+
+def _score_behavioral_probes(
+    model: lgb.LGBMClassifier,
+    calibrator: IsotonicRegression | None,
+    feature_names: list[str],
+) -> dict[str, float]:
+    probes = _probe_rows()
+    names = probes.pop("probe_name")
+    X = engineer_features(encode_categoricals(probes))[feature_names]
+    raw = model.predict_proba(X)[:, 1]
+    probabilities = calibrator.predict(raw) if calibrator is not None else raw
+    return {name: float(prob) for name, prob in zip(names, probabilities)}
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -208,6 +395,13 @@ def train_model(
     skip_tuning: bool,
 ) -> None:
     data = load_data(data_file)
+    missing_base_features = [feature for feature in BASE_FEATURES if feature not in data.columns]
+    if missing_base_features:
+        raise ValueError(
+            "Training data is missing required base features: "
+            + ", ".join(sorted(missing_base_features))
+        )
+    _print_pretraining_reports(data)
     data = data.drop(columns=["transaction_id", "user_id"], errors="ignore")
 
     # Encode categoricals and engineer features
@@ -310,6 +504,9 @@ def train_model(
         "support": report["1"]["support"],
     }
 
+    behavioral_probes = _score_behavioral_probes(final_model, isotonic_calibrator, feature_names)
+    metrics["behavioral_probes"] = behavioral_probes
+
     cm = metrics["confusion_matrix"]
     print(f"\nMetrics (threshold={metrics['threshold']:.4f}, strategy={metrics['threshold_strategy']})")
     print(f"  PR-AUC:    {metrics['pr_auc']:.4f}")
@@ -325,6 +522,10 @@ def train_model(
     print("\nTop-15 feature importances (gain):")
     for i in sorted_idx[:15]:
         print(f"  {feature_names[i]:35s} {importances[i]:>6d}")
+
+    print("\nBehavioral probes:")
+    for name, probability in behavioral_probes.items():
+        print(f"  {name:45s} {probability:.4f}")
 
     # ── Save ──
     os.makedirs(model_output_directory, exist_ok=True)

@@ -14,15 +14,33 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Output schema (backward-compatible with training_pipeline.py)
-# ──────────────────────────────────────────────────────────────────────────────
+_MERCHANT_CATEGORIES = [
+    "GROCERY", "RESTAURANT", "ENTERTAINMENT", "TRAVEL",
+    "HEALTHCARE", "EDUCATION", "UTILITIES", "OTHER",
+]
+_CARD_TYPES = ["CREDIT", "DEBIT", "CREDIT_AND_DEBIT", "OTHER"]
+_COUNTRIES = np.array(
+    ["US", "BR", "AR", "DE", "ES", "SE", "NL", "GB", "CA", "JP",
+     "AU", "MX", "CL", "ZA", "PT", "FR", "IT", "CH", "CN", "IN"],
+    dtype=object,
+)
+_COUNTRY_WEIGHTS = np.array(
+    [0.16, 0.12, 0.08, 0.10, 0.08, 0.09, 0.07, 0.07, 0.05, 0.05,
+     0.04, 0.04, 0.03, 0.03, 0.02, 0.02, 0.02, 0.02, 0.02, 0.01],
+    dtype=float,
+)
+_COUNTRY_WEIGHTS /= _COUNTRY_WEIGHTS.sum()
+
+_FIVE_MINUTES = 5 * 60
+_ONE_HOUR = 60 * 60
+_COLD_START_SECONDS = 30 * 24 * 3600
 
 _OUTPUT_COLUMNS = [
     "transaction_id",
     "user_id",
     "amount",
     "user_average_amount",
+    "user_historical_transaction_count",
     "user_transaction_count_5min",
     "user_transaction_count_1hour",
     "seconds_since_last_transaction",
@@ -42,31 +60,6 @@ _OUTPUT_COLUMNS = [
     "is_fraud",
 ]
 
-_MERCHANT_CATEGORIES = ["GROCERY", "RESTAURANT", "ENTERTAINMENT", "TRAVEL", "HEALTHCARE", "EDUCATION", "UTILITIES", "OTHER"]
-_CARD_TYPES = ["CREDIT", "DEBIT", "CREDIT_AND_DEBIT", "OTHER"]
-
-_COUNTRIES = np.array(
-    ["US", "BR", "AR", "DE", "ES", "SE", "NL", "GB", "CA", "JP",
-     "AU", "MX", "CL", "ZA", "PT", "FR", "IT", "CH", "CN", "IN"],
-    dtype=object,
-)
-_COUNTRY_WEIGHTS = np.array(
-    [0.16, 0.12, 0.08, 0.10, 0.08, 0.09, 0.07, 0.07, 0.05, 0.05,
-     0.04, 0.04, 0.03, 0.03, 0.02, 0.02, 0.02, 0.02, 0.02, 0.01],
-    dtype=float,
-)
-_COUNTRY_WEIGHTS /= _COUNTRY_WEIGHTS.sum()
-
-_FIVE_MINUTES = 5 * 60
-_ONE_HOUR = 60 * 60
-
-_N_IPS = 1500
-_N_MERCHANTS = 350
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# User segments
-# ──────────────────────────────────────────────────────────────────────────────
 
 class UserSegment(Enum):
     CASUAL = "casual"
@@ -76,314 +69,67 @@ class UserSegment(Enum):
     BUSINESS = "business"
 
 
+class Scenario(Enum):
+    LEGITIMATE_ROUTINE = "LegitimateRoutine"
+    LEGITIMATE_HIGH_VALUE = "LegitimateHighValue"
+    FIRST_TRANSACTION_LARGE_PURCHASE = "FirstTransactionLargePurchase"
+    ACCOUNT_TAKEOVER = "AccountTakeover"
+    CARD_TESTING_THEN_LARGE_PURCHASE = "CardTestingThenLargePurchase"
+    MERCHANT_COLLUSION = "MerchantCollusion"
+    VELOCITY_BURST = "VelocityBurst"
+    SYNTHETIC_IDENTITY = "SyntheticIdentity"
+    STEALTH_FRAUD = "StealthFraud"
+
+
 @dataclass(frozen=True)
 class SegmentConfig:
     weight: float
-    baseline_amount_log_mean: float
-    baseline_amount_log_sigma: float
-    activity_shape: float
-    activity_scale: float
-    trusted_device_mean: float
+    amount_mean: float
+    amount_sigma: float
+    activity_weight: float
+    trusted_device_rate: float
     travel_rate: float
-    card_age_log_mean: float
-    card_age_log_sigma: float
-    fraud_susceptibility: float
-    preferred_merchant_count: tuple[int, int]
-    hour_distribution: str
+    account_age_days: tuple[int, int]
+    card_age_days: tuple[int, int]
+    preferred_merchants: tuple[int, int]
+    hour_profile: str
 
 
-_SEGMENT_CONFIGS: dict[UserSegment, SegmentConfig] = {
-    UserSegment.CASUAL: SegmentConfig(
-        weight=0.35,
-        baseline_amount_log_mean=math.log(55.0),
-        baseline_amount_log_sigma=0.7,
-        activity_shape=1.5, activity_scale=0.6,
-        trusted_device_mean=0.92,
-        travel_rate=0.04,
-        card_age_log_mean=math.log(300.0), card_age_log_sigma=0.9,
-        fraud_susceptibility=0.8,
-        preferred_merchant_count=(2, 5),
-        hour_distribution="mixed",
-    ),
-    UserSegment.FREQUENT: SegmentConfig(
-        weight=0.25,
-        baseline_amount_log_mean=math.log(120.0),
-        baseline_amount_log_sigma=0.6,
-        activity_shape=3.0, activity_scale=1.2,
-        trusted_device_mean=0.94,
-        travel_rate=0.06,
-        card_age_log_mean=math.log(700.0), card_age_log_sigma=0.7,
-        fraud_susceptibility=1.0,
-        preferred_merchant_count=(4, 10),
-        hour_distribution="mixed",
-    ),
-    UserSegment.HIGH_VALUE: SegmentConfig(
-        weight=0.12,
-        baseline_amount_log_mean=math.log(450.0),
-        baseline_amount_log_sigma=0.9,
-        activity_shape=2.0, activity_scale=0.8,
-        trusted_device_mean=0.95,
-        travel_rate=0.10,
-        card_age_log_mean=math.log(1200.0), card_age_log_sigma=0.6,
-        fraud_susceptibility=1.4,
-        preferred_merchant_count=(3, 7),
-        hour_distribution="business",
-    ),
-    UserSegment.TRAVELER: SegmentConfig(
-        weight=0.13,
-        baseline_amount_log_mean=math.log(180.0),
-        baseline_amount_log_sigma=0.8,
-        activity_shape=2.2, activity_scale=1.0,
-        trusted_device_mean=0.88,
-        travel_rate=0.18,
-        card_age_log_mean=math.log(600.0), card_age_log_sigma=0.8,
-        fraud_susceptibility=1.2,
-        preferred_merchant_count=(5, 12),
-        hour_distribution="uniform",
-    ),
-    UserSegment.BUSINESS: SegmentConfig(
-        weight=0.15,
-        baseline_amount_log_mean=math.log(320.0),
-        baseline_amount_log_sigma=0.75,
-        activity_shape=3.5, activity_scale=1.5,
-        trusted_device_mean=0.90,
-        travel_rate=0.12,
-        card_age_log_mean=math.log(250.0), card_age_log_sigma=0.9,
-        fraud_susceptibility=1.1,
-        preferred_merchant_count=(3, 8),
-        hour_distribution="business",
-    ),
-}
+@dataclass(frozen=True)
+class QualityConfig:
+    missing_rate: float = 0.01
+    outlier_rate: float = 0.002
+    noise_scale: float = 0.015
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Registries — enhanced with temporal drift and merchant category tiers
-# ──────────────────────────────────────────────────────────────────────────────
-
-@dataclass
-class IpRecord:
-    true_risk: float
-    is_fraud_ring: bool
-    drift_rate: float
+@dataclass(frozen=True)
+class ValidationConfig:
+    min_avg_feature_overlap: float = 0.55
+    max_single_feature_auc: float = 0.78
+    min_large_cold_start_fraud_lift: float = 2.0
 
 
-@dataclass
+@dataclass(frozen=True)
+class GeneratorConfig:
+    fraud_rate: float = 0.05
+    stealth_rate: float = 0.18
+    cold_start_rate: float = 0.08
+    burst_budget_rate: float = 0.04
+    quality: QualityConfig = QualityConfig()
+    validation: ValidationConfig = ValidationConfig()
+
+
+@dataclass(frozen=True)
 class MerchantRecord:
     risk_score: float
-    category_risk_tier: int   # 0=low, 1=medium, 2=high
-    drift_rate: float
     category: str
 
 
-def _build_ip_registry(rng: np.random.Generator, n: int) -> list[IpRecord]:
-    records: list[IpRecord] = []
-    for _ in range(n):
-        tier = float(rng.random())
-        if tier < 0.58:
-            base = float(rng.beta(1.5, 9.0))
-        elif tier < 0.82:
-            base = float(rng.beta(2.8, 4.5))
-        else:
-            base = float(rng.beta(6.5, 2.0))
-        true_risk = float(np.clip(base + rng.normal(0.0, 0.025), 0.0, 1.0))
-        is_fraud_ring = base > 0.55 and float(rng.random()) < 0.28
-        drift_rate = float(rng.normal(0.0, 0.002))
-        records.append(IpRecord(true_risk=true_risk, is_fraud_ring=is_fraud_ring, drift_rate=drift_rate))
-    return records
+@dataclass(frozen=True)
+class IpRecord:
+    risk_score: float
+    fraud_ring: bool
 
-
-def _build_merchant_registry(rng: np.random.Generator, n: int) -> list[MerchantRecord]:
-    records: list[MerchantRecord] = []
-    for _ in range(n):
-        tier = float(rng.random())
-        if tier < 0.67:
-            base = float(rng.beta(1.5, 8.0))
-            category_risk_tier = 0
-        elif tier < 0.88:
-            base = float(rng.beta(3.0, 4.0))
-            category_risk_tier = 1
-        else:
-            base = float(rng.beta(5.0, 2.5))
-            category_risk_tier = 2
-        risk_score = float(np.clip(base + rng.normal(0.0, 0.025), 0.0, 1.0))
-        drift_rate = float(rng.normal(0.0, 0.001))
-        if category_risk_tier == 0:
-            category = str(rng.choice(["GROCERY", "HEALTHCARE", "EDUCATION", "UTILITIES"]))
-        elif category_risk_tier == 1:
-            category = str(rng.choice(["RESTAURANT", "OTHER"]))
-        else:
-            category = str(rng.choice(["ENTERTAINMENT", "TRAVEL"]))
-        records.append(MerchantRecord(risk_score=risk_score, category_risk_tier=category_risk_tier, drift_rate=drift_rate, category=category))
-    return records
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Fraud signal framework
-# ──────────────────────────────────────────────────────────────────────────────
-
-class FraudSignal(Enum):
-    HIGH_AMOUNT = "high_amount"
-    RISKY_IP = "risky_ip"
-    RISKY_MERCHANT = "risky_merchant"
-    DEVICE_MISMATCH = "device_mismatch"
-    COUNTRY_MISMATCH = "country_mismatch"
-    NEW_CARD = "new_card"
-    NIGHT_TIME = "night_time"
-    BURST = "burst"
-
-
-class FraudScenario(Enum):
-    MULTI_SIGNAL = "multi_signal"
-    ACCOUNT_TAKEOVER = "account_takeover"
-    FRIENDLY_FRAUD = "friendly_fraud"
-    MERCHANT_COLLUSION = "merchant_collusion"
-    SYNTHETIC_IDENTITY = "synthetic_identity"
-    STEALTH = "stealth"
-
-
-_ALL_SIGNALS = list(FraudSignal)
-
-_SIGNAL_BASE_PROBS: dict[FraudSignal, float] = {
-    FraudSignal.HIGH_AMOUNT: 0.55,
-    FraudSignal.RISKY_IP: 0.45,
-    FraudSignal.RISKY_MERCHANT: 0.50,
-    FraudSignal.DEVICE_MISMATCH: 0.40,
-    FraudSignal.COUNTRY_MISMATCH: 0.35,
-    FraudSignal.NEW_CARD: 0.25,
-    FraudSignal.NIGHT_TIME: 0.30,
-    FraudSignal.BURST: 0.35,
-}
-
-_SIGNAL_CORRELATIONS: dict[tuple[FraudSignal, FraudSignal], float] = {
-    (FraudSignal.HIGH_AMOUNT, FraudSignal.RISKY_MERCHANT): 0.20,
-    (FraudSignal.RISKY_IP, FraudSignal.DEVICE_MISMATCH): 0.15,
-    (FraudSignal.COUNTRY_MISMATCH, FraudSignal.RISKY_IP): 0.18,
-    (FraudSignal.BURST, FraudSignal.HIGH_AMOUNT): 0.12,
-    (FraudSignal.NEW_CARD, FraudSignal.HIGH_AMOUNT): 0.15,
-    (FraudSignal.NIGHT_TIME, FraudSignal.RISKY_IP): 0.10,
-    (FraudSignal.DEVICE_MISMATCH, FraudSignal.COUNTRY_MISMATCH): 0.12,
-}
-
-
-def _sample_fraud_signals(
-    rng: np.random.Generator,
-    scenario: FraudScenario,
-    segment: UserSegment,
-    escalation_score: float,
-) -> dict[FraudSignal, float]:
-    signals: dict[FraudSignal, float] = {}
-
-    if scenario == FraudScenario.STEALTH:
-        n_signals = 1 if float(rng.random()) < 0.45 else 2
-        order = rng.permutation(len(_ALL_SIGNALS))
-        for idx in order[:n_signals]:
-            signals[_ALL_SIGNALS[idx]] = float(rng.uniform(0.20, 0.40))
-        return signals
-
-    if scenario == FraudScenario.FRIENDLY_FRAUD:
-        if float(rng.random()) < 0.30:
-            options = [FraudSignal.HIGH_AMOUNT, FraudSignal.NIGHT_TIME]
-            sig = options[int(rng.integers(0, len(options)))]
-            signals[sig] = float(rng.uniform(0.05, 0.20))
-        return signals
-
-    if scenario == FraudScenario.ACCOUNT_TAKEOVER:
-        n_signals = [1, 2, 3][int(rng.choice(3, p=[0.30, 0.45, 0.25]))]
-        weights = np.array([0.10, 0.12, 0.10, 0.25, 0.20, 0.08, 0.10, 0.05], dtype=float)
-        weights /= weights.sum()
-        chosen = rng.choice(len(_ALL_SIGNALS), size=n_signals, replace=False, p=weights)
-        for idx in chosen:
-            signals[_ALL_SIGNALS[int(idx)]] = float(rng.uniform(0.30, 0.70))
-        return signals
-
-    if scenario == FraudScenario.MERCHANT_COLLUSION:
-        signals[FraudSignal.RISKY_MERCHANT] = float(rng.uniform(0.50, 0.85))
-        if float(rng.random()) < 0.35:
-            signals[FraudSignal.HIGH_AMOUNT] = float(rng.uniform(0.20, 0.50))
-        if float(rng.random()) < 0.20:
-            signals[FraudSignal.BURST] = float(rng.uniform(0.15, 0.40))
-        return signals
-
-    if scenario == FraudScenario.SYNTHETIC_IDENTITY:
-        signals[FraudSignal.NEW_CARD] = float(rng.uniform(0.60, 0.95))
-        signals[FraudSignal.BURST] = float(rng.uniform(0.30, 0.70))
-        if float(rng.random()) < 0.40:
-            signals[FraudSignal.HIGH_AMOUNT] = float(rng.uniform(0.25, 0.60))
-        return signals
-
-    # MULTI_SIGNAL: 2-4 concurrent signals with correlation structure
-    target_count = [2, 3, 4][int(rng.choice(3, p=[0.30, 0.45, 0.25]))]
-    target_count = min(target_count + (1 if escalation_score > 0.5 else 0), len(_ALL_SIGNALS))
-
-    adjusted_probs = dict(_SIGNAL_BASE_PROBS)
-    if segment == UserSegment.HIGH_VALUE:
-        adjusted_probs[FraudSignal.HIGH_AMOUNT] *= 1.3
-    if segment == UserSegment.TRAVELER:
-        adjusted_probs[FraudSignal.COUNTRY_MISMATCH] *= 0.7
-    if segment == UserSegment.BUSINESS:
-        adjusted_probs[FraudSignal.RISKY_MERCHANT] *= 1.2
-
-    order = rng.permutation(len(_ALL_SIGNALS))
-    for idx in order:
-        if len(signals) >= target_count:
-            break
-        sig = _ALL_SIGNALS[idx]
-        prob = adjusted_probs.get(sig, 0.3)
-        for existing_sig in signals:
-            boost = _SIGNAL_CORRELATIONS.get((existing_sig, sig), 0.0)
-            boost += _SIGNAL_CORRELATIONS.get((sig, existing_sig), 0.0)
-            prob = min(0.95, prob + boost)
-        if float(rng.random()) < prob:
-            strength = float(np.clip(rng.beta(3.0, 2.0), 0.2, 1.0))
-            strength = min(1.0, strength + escalation_score * 0.15)
-            signals[sig] = strength
-
-    while len(signals) < 2:
-        remaining = [s for s in _ALL_SIGNALS if s not in signals]
-        pick = remaining[int(rng.integers(0, len(remaining)))]
-        signals[pick] = float(rng.uniform(0.3, 0.7))
-
-    return signals
-
-
-def _choose_fraud_scenario(
-    rng: np.random.Generator,
-    segment: UserSegment,
-    stealth_rate: float,
-    account_age_days: int,
-    escalation_score: float,
-) -> FraudScenario:
-    effective_stealth = stealth_rate * max(0.3, 1.0 - escalation_score)
-    if float(rng.random()) < effective_stealth:
-        return FraudScenario.STEALTH
-
-    if account_age_days < 60 and float(rng.random()) < 0.25:
-        return FraudScenario.SYNTHETIC_IDENTITY
-
-    scenario_weights: dict[FraudScenario, float] = {
-        FraudScenario.MULTI_SIGNAL: 0.45,
-        FraudScenario.ACCOUNT_TAKEOVER: 0.20,
-        FraudScenario.FRIENDLY_FRAUD: 0.12,
-        FraudScenario.MERCHANT_COLLUSION: 0.13,
-        FraudScenario.SYNTHETIC_IDENTITY: 0.10,
-    }
-
-    if segment == UserSegment.HIGH_VALUE:
-        scenario_weights[FraudScenario.ACCOUNT_TAKEOVER] *= 1.5
-    if segment == UserSegment.CASUAL:
-        scenario_weights[FraudScenario.FRIENDLY_FRAUD] *= 1.3
-    if segment == UserSegment.BUSINESS:
-        scenario_weights[FraudScenario.MERCHANT_COLLUSION] *= 1.4
-
-    scenarios = list(scenario_weights.keys())
-    weights = np.array([scenario_weights[s] for s in scenarios], dtype=float)
-    weights /= weights.sum()
-    return scenarios[int(rng.choice(len(scenarios), p=weights))]
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# User profile & state
-# ──────────────────────────────────────────────────────────────────────────────
 
 @dataclass
 class UserProfile:
@@ -393,14 +139,14 @@ class UserProfile:
     baseline_amount: float
     activity_weight: float
     trusted_device_rate: float
-    card_creation_date: datetime
-    account_creation_date: datetime
-    card_type: str
-    home_ip_idx: int
-    roaming_ip_indices: list[int]
-    preferred_merchant_indices: list[int]
     travel_rate: float
-    hour_preference: str
+    account_created_at: datetime
+    card_created_at: datetime
+    card_type: str
+    home_ip: int
+    roaming_ips: list[int]
+    preferred_merchants: list[int]
+    hour_profile: str
 
 
 @dataclass
@@ -408,772 +154,467 @@ class UserState:
     profile: UserProfile
     running_amount_sum: float = 0.0
     running_amount_count: int = 0
-    recent_timestamps_5m: deque = field(default_factory=deque)
-    recent_timestamps_1h: deque = field(default_factory=deque)
-    recent_amounts_1h: deque = field(default_factory=deque)
-    recent_merchants_1h: deque = field(default_factory=deque)
     last_timestamp: datetime | None = None
-    transaction_count: int = 0
-    escalation_score: float = 0.0
-    last_amount: float = 0.0
-    legit_rapid_streak: int = 0
+    recent_timestamps_5m: deque[datetime] = field(default_factory=deque)
+    recent_timestamps_1h: deque[datetime] = field(default_factory=deque)
+    recent_amounts_1h: deque[float] = field(default_factory=deque)
+    recent_merchants_1h: deque[int] = field(default_factory=deque)
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Helpers
-# ──────────────────────────────────────────────────────────────────────────────
+_SEGMENTS: dict[UserSegment, SegmentConfig] = {
+    UserSegment.CASUAL: SegmentConfig(0.35, 55, 0.70, 0.7, 0.93, 0.04, (30, 900), (30, 1600), (2, 5), "mixed"),
+    UserSegment.FREQUENT: SegmentConfig(0.25, 120, 0.60, 1.4, 0.94, 0.06, (90, 1200), (90, 2200), (4, 10), "mixed"),
+    UserSegment.HIGH_VALUE: SegmentConfig(0.12, 900, 0.85, 0.9, 0.95, 0.09, (180, 1800), (180, 2600), (3, 7), "business"),
+    UserSegment.TRAVELER: SegmentConfig(0.13, 180, 0.80, 1.0, 0.88, 0.20, (90, 1400), (90, 2200), (5, 12), "uniform"),
+    UserSegment.BUSINESS: SegmentConfig(0.15, 360, 0.75, 1.6, 0.90, 0.12, (60, 1200), (60, 1800), (3, 8), "business"),
+}
+
 
 def _generate_transaction_id() -> str:
     return str(uuid.uuid4())
 
 
-def _normalize_weights(weights: np.ndarray) -> np.ndarray:
-    weights = np.asarray(weights, dtype=float)
-    total = float(weights.sum())
-    if total <= 0:
-        return np.full(len(weights), 1.0 / len(weights))
-    return weights / total
+def _clip_amount(amount: float, upper: float = 1_250_000.0) -> float:
+    return float(round(np.clip(amount, 0.01, upper), 2))
 
 
-def _clip_amount(amount: float) -> float:
-    return float(max(0.01, round(amount, 2)))
+def _sample_lognormal(rng: np.random.Generator, mean: float, sigma: float) -> float:
+    return float(rng.lognormal(mean=math.log(mean), sigma=sigma))
 
 
-def _sample_ip_risk(rng: np.random.Generator, ip_record: IpRecord, days_elapsed: float) -> float:
-    drift = ip_record.drift_rate * days_elapsed
-    noise = float(rng.normal(0.0, 0.04))
-    return float(round(np.clip(ip_record.true_risk + drift + noise, 0.0, 1.0), 4))
+def _choice(rng: np.random.Generator, values: list[Any], weights: list[float] | None = None) -> Any:
+    if weights is None:
+        return values[int(rng.integers(0, len(values)))]
+    probs = np.array(weights, dtype=float)
+    probs /= probs.sum()
+    return values[int(rng.choice(len(values), p=probs))]
 
 
-def _sample_merchant_risk(rng: np.random.Generator, merchant_record: MerchantRecord, days_elapsed: float) -> float:
-    drift = merchant_record.drift_rate * days_elapsed
-    noise = float(rng.normal(0.0, 0.03))
-    return float(round(np.clip(merchant_record.risk_score + drift + noise, 0.0, 1.0), 4))
+def _build_ip_registry(rng: np.random.Generator, count: int = 1500) -> list[IpRecord]:
+    records: list[IpRecord] = []
+    for _ in range(count):
+        tier = float(rng.random())
+        if tier < 0.70:
+            risk = float(rng.beta(1.4, 10.0))
+        elif tier < 0.90:
+            risk = float(rng.beta(3.0, 4.5))
+        else:
+            risk = float(rng.beta(6.5, 2.0))
+        risk = float(np.clip(risk + rng.normal(0, 0.025), 0, 1))
+        records.append(IpRecord(risk_score=risk, fraud_ring=risk > 0.62 and float(rng.random()) < 0.35))
+    return records
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Temporal patterns
-# ──────────────────────────────────────────────────────────────────────────────
-
-def _sample_hour_of_day(
-    rng: np.random.Generator,
-    preference: str,
-    is_fraud: bool,
-    signals: dict[FraudSignal, float],
-) -> int:
-    if FraudSignal.NIGHT_TIME in signals:
-        strength = signals[FraudSignal.NIGHT_TIME]
-        if float(rng.random()) < 0.5 + 0.4 * strength:
-            night_hours = [0, 1, 2, 3, 4, 5, 22, 23]
-            return night_hours[int(rng.integers(0, len(night_hours)))]
-
-    if preference == "business":
-        weights = np.array([1, 1, 1, 1, 1, 2, 3, 5, 8, 10, 10, 9, 8, 8, 9, 10, 9, 7, 5, 4, 3, 2, 1, 1], dtype=float)
-    elif preference == "evening":
-        weights = np.array([1, 1, 1, 1, 1, 1, 2, 3, 4, 5, 5, 5, 5, 5, 5, 5, 6, 8, 9, 10, 9, 7, 4, 2], dtype=float)
-    elif preference == "uniform":
-        weights = np.ones(24, dtype=float)
-    else:
-        weights = np.array([2, 1, 1, 1, 1, 2, 3, 5, 7, 8, 8, 7, 7, 6, 6, 6, 7, 8, 8, 7, 6, 5, 4, 3], dtype=float)
-
-    if is_fraud and FraudSignal.NIGHT_TIME not in signals:
-        night_boost = np.array(
-            [1.4, 1.5, 1.5, 1.5, 1.4, 1.2, 1.0, 0.9, 0.9, 0.9, 0.9, 0.9,
-             0.9, 0.9, 0.9, 0.9, 0.9, 1.0, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5],
-            dtype=float,
-        )
-        weights *= night_boost
-
-    weights /= weights.sum()
-    return int(rng.choice(24, p=weights))
-
-
-def _apply_day_of_week_effect(rng: np.random.Generator, base_gap: float, preference: str) -> float:
-    day_factors = np.array([0.80, 0.85, 0.90, 0.95, 1.00, 1.30, 1.25], dtype=float)
-    day_weights = np.full(7, 1.0 / 7)
-    factor = float(day_factors[int(rng.choice(7, p=day_weights))])
-    if preference == "business":
-        return base_gap * factor
-    return base_gap * float(rng.uniform(0.85, 1.15))
-
-
-def _apply_seasonal_variation(rng: np.random.Generator, amount: float, day_of_year: int) -> float:
-    if 305 <= day_of_year <= 365:
-        amount *= float(rng.uniform(1.05, 1.35))
-    elif day_of_year <= 31:
-        amount *= float(rng.uniform(0.85, 0.98))
-    elif 152 <= day_of_year <= 243:
-        amount *= float(rng.uniform(1.00, 1.15))
-    return amount
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Feature generators (overlap-aware)
-# ──────────────────────────────────────────────────────────────────────────────
-
-def _sample_amount(
-    rng: np.random.Generator,
-    baseline: float,
-    is_fraud: bool,
-    signals: dict[FraudSignal, float],
-    segment: UserSegment,
-) -> float:
-    if is_fraud and FraudSignal.HIGH_AMOUNT in signals:
-        strength = signals[FraudSignal.HIGH_AMOUNT]
-        low = 1.2 + 0.3 * strength
-        high = 2.0 + 2.0 * strength
-        multiplier = float(rng.uniform(low, high))
-    elif is_fraud:
-        multiplier = float(rng.uniform(0.7, 2.0))
-    else:
-        multiplier = float(rng.uniform(0.6, 1.6))
-        if float(rng.random()) < 0.06:
-            multiplier = float(rng.uniform(1.5, 2.2))
-        if segment in (UserSegment.HIGH_VALUE, UserSegment.BUSINESS):
-            multiplier *= float(rng.uniform(0.9, 1.4))
-
-    noise = float(rng.normal(loc=1.0, scale=0.10))
-    return _clip_amount(baseline * multiplier * max(0.25, noise))
-
-
-def _sample_device_trusted(
-    rng: np.random.Generator,
-    base_rate: float,
-    is_fraud: bool,
-    signals: dict[FraudSignal, float],
-) -> bool:
-    if is_fraud and FraudSignal.DEVICE_MISMATCH in signals:
-        strength = signals[FraudSignal.DEVICE_MISMATCH]
-        prob = float(rng.uniform(0.3, 0.8 - 0.3 * strength))
-    elif is_fraud:
-        prob = base_rate * float(rng.uniform(0.6, 0.95))
-    else:
-        prob = float(np.clip(base_rate + rng.normal(0.0, 0.05), 0.6, 0.95))
-    return bool(rng.random() < prob)
-
-
-def _sample_country_mismatch(
-    rng: np.random.Generator,
-    travel_rate: float,
-    is_fraud: bool,
-    signals: dict[FraudSignal, float],
-    segment: UserSegment,
-) -> bool:
-    if is_fraud and FraudSignal.COUNTRY_MISMATCH in signals:
-        strength = signals[FraudSignal.COUNTRY_MISMATCH]
-        prob = 0.40 + 0.45 * strength
-    elif is_fraud:
-        prob = 0.12 + float(rng.uniform(0.0, 0.10))
-    else:
-        prob = travel_rate
-        if segment == UserSegment.TRAVELER:
-            prob = float(rng.uniform(0.12, 0.22))
-        elif segment == UserSegment.BUSINESS:
-            prob = float(rng.uniform(0.08, 0.15))
-    return bool(rng.random() < prob)
-
-
-def _sample_card_age(
-    rng: np.random.Generator,
-    actual_card_age: int,
-    is_fraud: bool,
-    signals: dict[FraudSignal, float],
-) -> int:
-    if is_fraud and FraudSignal.NEW_CARD in signals:
-        strength = signals[FraudSignal.NEW_CARD]
-        mean_age = 350.0 - 200.0 * strength
-        sigma = 0.7 + 0.3 * (1.0 - strength)
-        age = float(rng.lognormal(mean=math.log(max(10.0, mean_age)), sigma=sigma))
-        return int(np.clip(age, 1, 1500))
-    if is_fraud:
-        noise = float(rng.normal(0.0, 0.15))
-        return int(np.clip(actual_card_age * (0.85 + noise), 1, 3650))
-    noise = float(rng.normal(0.0, 0.05))
-    return int(np.clip(actual_card_age * (1.0 + noise), 1, 3650))
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# IP and merchant selection
-# ──────────────────────────────────────────────────────────────────────────────
-
-def _pick_ip_index(
-    rng: np.random.Generator,
-    profile: UserProfile,
-    is_fraud: bool,
-    signals: dict[FraudSignal, float],
-    fraud_ring_indices: list[int],
-    n_ips: int,
-) -> int:
-    if is_fraud and FraudSignal.RISKY_IP in signals:
-        strength = signals[FraudSignal.RISKY_IP]
-        if fraud_ring_indices and float(rng.random()) < 0.3 + 0.4 * strength:
-            return int(rng.choice(fraud_ring_indices))
-        return int(rng.integers(0, n_ips))
-
-    if is_fraud:
-        if fraud_ring_indices and float(rng.random()) < 0.25:
-            return int(rng.choice(fraud_ring_indices))
-        return int(rng.integers(0, n_ips))
-
-    home_prob = 0.55 if profile.segment == UserSegment.TRAVELER else 0.78
-    if float(rng.random()) < home_prob:
-        return profile.home_ip_idx
-
-    if fraud_ring_indices and float(rng.random()) < 0.02:
-        return int(rng.choice(fraud_ring_indices))
-
-    if profile.roaming_ip_indices:
-        return int(rng.choice(profile.roaming_ip_indices))
-    return int(rng.integers(0, n_ips))
-
-
-def _pick_merchant_index(
-    rng: np.random.Generator,
-    profile: UserProfile,
-    is_fraud: bool,
-    signals: dict[FraudSignal, float],
-    high_risk_merchant_indices: list[int],
-    n_merchants: int,
-) -> int:
-    if is_fraud and FraudSignal.RISKY_MERCHANT in signals:
-        strength = signals[FraudSignal.RISKY_MERCHANT]
-        if high_risk_merchant_indices and float(rng.random()) < 0.4 + 0.4 * strength:
-            return int(rng.choice(high_risk_merchant_indices))
-        return int(rng.integers(0, n_merchants))
-
-    if is_fraud:
-        if high_risk_merchant_indices and float(rng.random()) < 0.30:
-            return int(rng.choice(high_risk_merchant_indices))
-        return int(rng.integers(0, n_merchants))
-
-    if float(rng.random()) < 0.62 and profile.preferred_merchant_indices:
-        return int(rng.choice(profile.preferred_merchant_indices))
-
-    if high_risk_merchant_indices and float(rng.random()) < 0.03:
-        return int(rng.choice(high_risk_merchant_indices))
-
-    return int(rng.integers(0, n_merchants))
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Profile construction
-# ──────────────────────────────────────────────────────────────────────────────
-
-def _assign_segment(rng: np.random.Generator) -> UserSegment:
-    segments = list(_SEGMENT_CONFIGS.keys())
-    weights = np.array([_SEGMENT_CONFIGS[s].weight for s in segments], dtype=float)
-    weights /= weights.sum()
-    return segments[int(rng.choice(len(segments), p=weights))]
+def _build_merchant_registry(rng: np.random.Generator, count: int = 350) -> list[MerchantRecord]:
+    records: list[MerchantRecord] = []
+    for _ in range(count):
+        tier = float(rng.random())
+        if tier < 0.66:
+            risk = float(rng.beta(1.5, 8.0))
+            category = str(rng.choice(["GROCERY", "HEALTHCARE", "EDUCATION", "UTILITIES"]))
+        elif tier < 0.88:
+            risk = float(rng.beta(3.0, 4.0))
+            category = str(rng.choice(["RESTAURANT", "OTHER"]))
+        else:
+            risk = float(rng.beta(5.0, 2.3))
+            category = str(rng.choice(["ENTERTAINMENT", "TRAVEL"]))
+        records.append(MerchantRecord(risk_score=float(np.clip(risk, 0, 1)), category=category))
+    return records
 
 
 def _build_profiles(
     rng: np.random.Generator,
-    user_count: int,
-    simulation_start: datetime,
-    ip_registry: list[IpRecord],
-    merchant_registry: list[MerchantRecord],
-    fraud_ring_indices: list[int],
+    count: int,
+    start: datetime,
+    ips: list[IpRecord],
+    merchants: list[MerchantRecord],
 ) -> list[UserProfile]:
-    n_ips = len(ip_registry)
-    n_merchants = len(merchant_registry)
+    segments = list(_SEGMENTS)
+    weights = [_SEGMENTS[s].weight for s in segments]
     profiles: list[UserProfile] = []
+    low_risk_ips = [i for i, ip in enumerate(ips) if ip.risk_score < 0.35] or list(range(len(ips)))
+    low_mid_merchants = [i for i, m in enumerate(merchants) if m.risk_score < 0.55] or list(range(len(merchants)))
 
-    for index in range(user_count):
-        segment = _assign_segment(rng)
-        cfg = _SEGMENT_CONFIGS[segment]
-
-        home_country = str(rng.choice(_COUNTRIES, p=_COUNTRY_WEIGHTS))
-        baseline_amount = float(np.clip(
-            rng.lognormal(mean=cfg.baseline_amount_log_mean, sigma=cfg.baseline_amount_log_sigma),
-            5.0, 5000.0,
-        ))
-        activity_weight = float(rng.gamma(shape=cfg.activity_shape, scale=cfg.activity_scale))
-        trusted_device_rate = float(np.clip(
-            rng.normal(loc=cfg.trusted_device_mean, scale=0.05), 0.60, 0.995,
-        ))
-        card_age_days = int(np.clip(
-            rng.lognormal(mean=cfg.card_age_log_mean, sigma=cfg.card_age_log_sigma),
-            7, 3650,
-        ))
-
-        if fraud_ring_indices and float(rng.random()) < 0.02:
-            home_ip_idx = int(rng.choice(fraud_ring_indices))
-        else:
-            home_ip_idx = int(rng.integers(0, n_ips))
-
-        n_roaming = int(rng.integers(2, 6))
-        roaming_ip_indices = [int(rng.integers(0, n_ips)) for _ in range(n_roaming)]
-
-        n_preferred = int(rng.integers(cfg.preferred_merchant_count[0], cfg.preferred_merchant_count[1] + 1))
-        preferred_merchant_indices = [int(rng.integers(0, n_merchants)) for _ in range(n_preferred)]
-
-        account_age_days = int(np.clip(
-            card_age_days + rng.integers(-180, 365),
-            30, 3650,
-        ))
-        card_type = str(rng.choice(_CARD_TYPES, p=[0.45, 0.35, 0.15, 0.05]))
-
+    for _ in range(count):
+        segment = _choice(rng, segments, weights)
+        cfg = _SEGMENTS[segment]
+        baseline = _clip_amount(_sample_lognormal(rng, cfg.amount_mean, cfg.amount_sigma), upper=80_000)
+        account_age = int(rng.integers(cfg.account_age_days[0], cfg.account_age_days[1] + 1))
+        card_age = int(rng.integers(cfg.card_age_days[0], cfg.card_age_days[1] + 1))
+        preferred_count = int(rng.integers(cfg.preferred_merchants[0], cfg.preferred_merchants[1] + 1))
         profiles.append(UserProfile(
-            user_id=f"user-{index + 1:04d}",
+            user_id=str(uuid.uuid4()),
             segment=segment,
-            home_country=home_country,
-            baseline_amount=baseline_amount,
-            activity_weight=activity_weight,
-            trusted_device_rate=trusted_device_rate,
-            card_creation_date=simulation_start - timedelta(days=card_age_days),
-            account_creation_date=simulation_start - timedelta(days=account_age_days),
-            card_type=card_type,
-            home_ip_idx=home_ip_idx,
-            roaming_ip_indices=roaming_ip_indices,
-            preferred_merchant_indices=preferred_merchant_indices,
+            home_country=str(rng.choice(_COUNTRIES, p=_COUNTRY_WEIGHTS)),
+            baseline_amount=baseline,
+            activity_weight=cfg.activity_weight * float(rng.uniform(0.65, 1.35)),
+            trusted_device_rate=float(np.clip(cfg.trusted_device_rate + rng.normal(0, 0.03), 0.65, 0.98)),
             travel_rate=cfg.travel_rate,
-            hour_preference=cfg.hour_distribution,
+            account_created_at=start - timedelta(days=account_age),
+            card_created_at=start - timedelta(days=max(1, min(card_age, account_age + int(rng.integers(15, 365))))),
+            card_type=str(rng.choice(_CARD_TYPES, p=[0.54, 0.29, 0.12, 0.05])),
+            home_ip=int(rng.choice(low_risk_ips)),
+            roaming_ips=[int(x) for x in rng.choice(len(ips), size=3, replace=False)],
+            preferred_merchants=[int(x) for x in rng.choice(low_mid_merchants, size=preferred_count, replace=False)],
+            hour_profile=cfg.hour_profile,
         ))
     return profiles
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# History seeding & window management
-# ──────────────────────────────────────────────────────────────────────────────
-
-def _seed_hidden_history(state: UserState, rng: np.random.Generator, simulation_start: datetime) -> None:
-    recent_seed = float(rng.random()) < 0.35
-    if recent_seed:
-        hidden_event_count = int(rng.integers(3, 6))
-        timestamp = simulation_start - timedelta(seconds=int(rng.integers(30, 240)))
-        gap_low, gap_high = 15, 90
-    else:
-        hidden_event_count = int(rng.integers(2, 6))
-        timestamp = simulation_start - timedelta(seconds=int(rng.integers(1800, 6 * 3600)))
-        gap_low, gap_high = 180, 2 * 3600
-
-    for _ in range(hidden_event_count):
-        timestamp += timedelta(seconds=int(rng.integers(gap_low, gap_high)))
-        noise = max(0.25, float(rng.normal(1.0, 0.12)))
-        amount = _clip_amount(state.profile.baseline_amount * float(rng.uniform(0.75, 1.15)) * noise)
+def _seed_history(state: UserState, rng: np.random.Generator, start: datetime) -> None:
+    profile = state.profile
+    seed_count = int(np.clip(rng.poisson(6 * profile.activity_weight), 0, 30))
+    for _ in range(seed_count):
+        amount = _clip_amount(_sample_lognormal(rng, profile.baseline_amount, 0.35))
         state.running_amount_sum += amount
         state.running_amount_count += 1
-        state.last_timestamp = timestamp
-        state.last_amount = amount
-        state.recent_timestamps_1h.append(timestamp)
-        state.recent_amounts_1h.append(amount)
-        if timestamp >= simulation_start - timedelta(seconds=_FIVE_MINUTES):
-            state.recent_timestamps_5m.append(timestamp)
+    if seed_count:
+        state.last_timestamp = start - timedelta(seconds=int(rng.integers(2 * 3600, 10 * 24 * 3600)))
 
 
-def _prune_windows(state: UserState, current_timestamp: datetime) -> None:
-    cutoff_5m = current_timestamp - timedelta(seconds=_FIVE_MINUTES)
-    cutoff_1h = current_timestamp - timedelta(seconds=_ONE_HOUR)
-    while state.recent_timestamps_5m and state.recent_timestamps_5m[0] < cutoff_5m:
+def _prune_windows(state: UserState, ts: datetime) -> None:
+    while state.recent_timestamps_5m and (ts - state.recent_timestamps_5m[0]).total_seconds() > _FIVE_MINUTES:
         state.recent_timestamps_5m.popleft()
-    while state.recent_timestamps_1h and state.recent_timestamps_1h[0] < cutoff_1h:
+    while state.recent_timestamps_1h and (ts - state.recent_timestamps_1h[0]).total_seconds() > _ONE_HOUR:
         state.recent_timestamps_1h.popleft()
-        if state.recent_amounts_1h:
-            state.recent_amounts_1h.popleft()
-        if state.recent_merchants_1h:
-            state.recent_merchants_1h.popleft()
+        state.recent_amounts_1h.popleft()
+        state.recent_merchants_1h.popleft()
 
 
-def _choose_event_kind(rng: np.random.Generator, fraud_rate: float, stealth_rate: float) -> tuple[bool, str]:
-    if float(rng.random()) >= fraud_rate:
-        return False, "legit"
+def _hour(rng: np.random.Generator, profile: str, night_bias: bool = False) -> int:
+    if night_bias and float(rng.random()) < 0.75:
+        return int(rng.choice([0, 1, 2, 3, 4, 5, 22, 23]))
+    if profile == "business":
+        weights = np.array([1, 1, 1, 1, 1, 2, 3, 5, 8, 10, 10, 9, 8, 8, 9, 10, 9, 7, 5, 4, 3, 2, 1, 1], dtype=float)
+    elif profile == "uniform":
+        weights = np.ones(24, dtype=float)
+    else:
+        weights = np.array([2, 1, 1, 1, 1, 2, 3, 5, 7, 8, 8, 7, 7, 6, 6, 6, 7, 8, 8, 7, 6, 5, 4, 3], dtype=float)
+    weights /= weights.sum()
+    return int(rng.choice(24, p=weights))
 
-    if float(rng.random()) < stealth_rate:
-        return True, "stealth"
 
-    fraud_kinds = np.array(["burst", "high_amount", "risky_merchant", "device_mismatch", "country_mismatch", "new_card", "night_time", "risky_ip"], dtype=object)
-    fraud_weights = _normalize_weights(np.array([0.20, 0.18, 0.14, 0.13, 0.11, 0.10, 0.07, 0.07], dtype=float))
-    return True, str(rng.choice(fraud_kinds, p=fraud_weights))
+def _choose_scenario(state: UserState, rng: np.random.Generator, cfg: GeneratorConfig) -> Scenario:
+    no_history = state.running_amount_count == 0
+    if no_history:
+        return _choice(
+            rng,
+            [Scenario.FIRST_TRANSACTION_LARGE_PURCHASE, Scenario.SYNTHETIC_IDENTITY, Scenario.LEGITIMATE_ROUTINE],
+            [0.28, 0.12, 0.60],
+        )
+
+    if float(rng.random()) >= cfg.fraud_rate:
+        if state.profile.segment in (UserSegment.HIGH_VALUE, UserSegment.BUSINESS) and float(rng.random()) < 0.12:
+            return Scenario.LEGITIMATE_HIGH_VALUE
+        return Scenario.LEGITIMATE_ROUTINE
+
+    fraud_scenarios = [
+        Scenario.ACCOUNT_TAKEOVER,
+        Scenario.CARD_TESTING_THEN_LARGE_PURCHASE,
+        Scenario.MERCHANT_COLLUSION,
+        Scenario.VELOCITY_BURST,
+        Scenario.SYNTHETIC_IDENTITY,
+        Scenario.STEALTH_FRAUD,
+        Scenario.FIRST_TRANSACTION_LARGE_PURCHASE,
+    ]
+    weights = [0.24, 0.13, 0.13, 0.18, 0.10, cfg.stealth_rate, 0.08]
+    return _choice(rng, fraud_scenarios, weights)
 
 
-def _choose_gap_seconds(
-    rng: np.random.Generator,
-    is_fraud: bool,
-    signals: dict[FraudSignal, float],
-    activity_weight: float,
-    hour_preference: str,
-) -> int:
-    if FraudSignal.BURST in signals:
-        strength = signals[FraudSignal.BURST]
-        max_gap = int(420 - 300 * strength)
-        return int(rng.integers(15, max(20, max_gap)))
+def _scenario_is_fraud(scenario: Scenario) -> bool:
+    return scenario not in {Scenario.LEGITIMATE_ROUTINE, Scenario.LEGITIMATE_HIGH_VALUE}
 
-    if is_fraud:
-        return int(np.clip(rng.lognormal(mean=math.log(45 * 60), sigma=1.2), 120, 36 * 3600))
 
-    if float(rng.random()) < 0.06:
+def _pick_ip(rng: np.random.Generator, profile: UserProfile, scenario: Scenario, ips: list[IpRecord]) -> int:
+    risky = [i for i, ip in enumerate(ips) if ip.risk_score > 0.65 or ip.fraud_ring]
+    if scenario in {Scenario.ACCOUNT_TAKEOVER, Scenario.FIRST_TRANSACTION_LARGE_PURCHASE, Scenario.SYNTHETIC_IDENTITY}:
+        if risky and float(rng.random()) < 0.70:
+            return int(rng.choice(risky))
+    if scenario == Scenario.STEALTH_FRAUD and float(rng.random()) < 0.75:
+        return int(rng.choice(profile.roaming_ips))
+    if float(rng.random()) < 0.88:
+        return profile.home_ip
+    return int(rng.choice(profile.roaming_ips))
+
+
+def _pick_merchant(rng: np.random.Generator, profile: UserProfile, scenario: Scenario, merchants: list[MerchantRecord]) -> int:
+    risky = [i for i, m in enumerate(merchants) if m.risk_score > 0.60]
+    if scenario in {Scenario.MERCHANT_COLLUSION, Scenario.FIRST_TRANSACTION_LARGE_PURCHASE} and risky:
+        if float(rng.random()) < 0.78:
+            return int(rng.choice(risky))
+    if scenario == Scenario.ACCOUNT_TAKEOVER and float(rng.random()) < 0.45 and risky:
+        return int(rng.choice(risky))
+    if float(rng.random()) < 0.82:
+        return int(rng.choice(profile.preferred_merchants))
+    return int(rng.integers(0, len(merchants)))
+
+
+def _gap_seconds(rng: np.random.Generator, profile: UserProfile, scenario: Scenario, no_history: bool) -> int:
+    if no_history:
+        return _COLD_START_SECONDS
+    if scenario == Scenario.VELOCITY_BURST:
+        return int(rng.integers(15, 180))
+    if scenario == Scenario.CARD_TESTING_THEN_LARGE_PURCHASE:
+        return int(rng.integers(45, 240))
+    if _scenario_is_fraud(scenario):
+        return int(np.clip(rng.lognormal(mean=math.log(40 * 60), sigma=1.1), 60, 24 * 3600))
+    if float(rng.random()) < 0.05:
         return int(rng.integers(60, 600))
-
-    cadence = 60.0 * 60.0 * float(np.clip(rng.lognormal(mean=math.log(14.0), sigma=0.7), 1.5, 48.0))
-    cadence /= max(0.35, activity_weight)
-    cadence = _apply_day_of_week_effect(rng, cadence, hour_preference)
+    cadence = 60 * 60 * float(np.clip(rng.lognormal(mean=math.log(14), sigma=0.7), 1.5, 72.0))
+    cadence /= max(0.35, profile.activity_weight)
     return int(np.clip(cadence, 2 * 60, 9 * 24 * 3600))
 
 
-def _build_event_timestamp(
+def _amount_for_scenario(rng: np.random.Generator, baseline: float, profile: UserProfile, scenario: Scenario) -> float:
+    if scenario == Scenario.FIRST_TRANSACTION_LARGE_PURCHASE:
+        floor = max(25_000.0, baseline * 40)
+        return _clip_amount(_sample_lognormal(rng, floor, 0.90))
+    if scenario == Scenario.LEGITIMATE_HIGH_VALUE:
+        multiplier = float(rng.uniform(2.5, 8.0 if profile.segment == UserSegment.HIGH_VALUE else 4.5))
+        return _clip_amount(_sample_lognormal(rng, baseline * multiplier, 0.35), upper=250_000)
+    if scenario == Scenario.CARD_TESTING_THEN_LARGE_PURCHASE:
+        return _clip_amount(_sample_lognormal(rng, max(1_500, baseline * 6), 0.65))
+    if scenario == Scenario.ACCOUNT_TAKEOVER:
+        return _clip_amount(_sample_lognormal(rng, max(500, baseline * float(rng.uniform(3.0, 12.0))), 0.55))
+    if scenario == Scenario.MERCHANT_COLLUSION:
+        return _clip_amount(_sample_lognormal(rng, max(350, baseline * float(rng.uniform(1.5, 5.0))), 0.60))
+    if scenario == Scenario.VELOCITY_BURST:
+        return _clip_amount(_sample_lognormal(rng, max(25, baseline * float(rng.uniform(0.35, 1.4))), 0.45))
+    if scenario == Scenario.SYNTHETIC_IDENTITY:
+        return _clip_amount(_sample_lognormal(rng, max(800, baseline * float(rng.uniform(3.0, 10.0))), 0.70))
+    if scenario == Scenario.STEALTH_FRAUD:
+        return _clip_amount(_sample_lognormal(rng, baseline * float(rng.uniform(0.85, 2.2)), 0.35))
+    return _clip_amount(_sample_lognormal(rng, baseline, 0.42))
+
+
+def _materialize_row(
     state: UserState,
     rng: np.random.Generator,
-    is_fraud: bool,
-    signals: dict[FraudSignal, float],
-) -> datetime:
-    base_timestamp = state.last_timestamp or datetime(2026, 1, 1, 8, 0, 0)
-    gap_seconds = _choose_gap_seconds(
-        rng, is_fraud, signals, state.profile.activity_weight, state.profile.hour_preference,
-    )
-    return base_timestamp + timedelta(seconds=gap_seconds)
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Row generation
-# ──────────────────────────────────────────────────────────────────────────────
-
-def _generate_row(
-    state: UserState,
-    rng: np.random.Generator,
-    fraud_rate: float,
-    stealth_rate: float,
-    ip_registry: list[IpRecord],
-    merchant_registry: list[MerchantRecord],
-    fraud_ring_indices: list[int],
-    high_risk_merchant_indices: list[int],
+    scenario: Scenario,
+    ips: list[IpRecord],
+    merchants: list[MerchantRecord],
     simulation_start: datetime,
 ) -> dict[str, Any]:
     profile = state.profile
-    is_fraud = float(rng.random()) < fraud_rate
+    is_fraud = _scenario_is_fraud(scenario)
+    historical_count = state.running_amount_count
+    no_history = historical_count == 0
+    baseline_average = state.running_amount_sum / historical_count if historical_count else profile.baseline_amount
 
-    # Warmup: new accounts don't fraud immediately (except synthetic identity)
-    if is_fraud and state.transaction_count < 3 and float(rng.random()) < 0.70:
-        is_fraud = False
+    base_ts = state.last_timestamp or simulation_start
+    event_ts = base_ts + timedelta(seconds=_gap_seconds(rng, profile, scenario, no_history))
+    hour = _hour(rng, profile.hour_profile, night_bias=scenario in {Scenario.ACCOUNT_TAKEOVER, Scenario.STEALTH_FRAUD})
+    event_ts = event_ts.replace(hour=hour, minute=int(rng.integers(0, 60)), second=int(rng.integers(0, 60)), microsecond=0)
+    while state.last_timestamp is not None and event_ts <= state.last_timestamp:
+        event_ts += timedelta(days=1)
+    _prune_windows(state, event_ts)
 
-    if is_fraud:
-        state.escalation_score = min(1.0, state.escalation_score + float(rng.uniform(0.02, 0.08)))
+    ip_idx = _pick_ip(rng, profile, scenario, ips)
+    merchant_idx = _pick_merchant(rng, profile, scenario, merchants)
+    ip_risk = float(round(np.clip(ips[ip_idx].risk_score + rng.normal(0, 0.035), 0, 1), 4))
+    merchant_risk = float(round(np.clip(merchants[merchant_idx].risk_score + rng.normal(0, 0.025), 0, 1), 4))
 
-    if is_fraud:
-        ref_ts = state.last_timestamp or (simulation_start - timedelta(days=1))
-        account_age = max(1, int((ref_ts - profile.card_creation_date).total_seconds()) // 86400)
-        scenario = _choose_fraud_scenario(rng, profile.segment, stealth_rate, account_age, state.escalation_score)
-        signals = _sample_fraud_signals(rng, scenario, profile.segment, state.escalation_score)
-    else:
-        signals = {}
-
-    event_timestamp = _build_event_timestamp(state, rng, is_fraud, signals)
-    _prune_windows(state, event_timestamp)
-    days_elapsed = (event_timestamp - simulation_start).total_seconds() / 86400.0
-
-    user_average_amount = (
-        state.running_amount_sum / state.running_amount_count
-        if state.running_amount_count > 0
-        else profile.baseline_amount
-    )
-
-    # IP & merchant
-    ip_idx = _pick_ip_index(rng, profile, is_fraud, signals, fraud_ring_indices, len(ip_registry))
-    merchant_idx = _pick_merchant_index(rng, profile, is_fraud, signals, high_risk_merchant_indices, len(merchant_registry))
-    ip_risk_score = _sample_ip_risk(rng, ip_registry[ip_idx], days_elapsed)
-    merchant_risk_score = _sample_merchant_risk(rng, merchant_registry[merchant_idx], days_elapsed)
-
-    # Amount with overlap
-    amount = _sample_amount(rng, user_average_amount, is_fraud, signals, profile.segment)
-
-    # Correlation: high-risk merchant category → slightly higher legit amounts
-    if not is_fraud and merchant_registry[merchant_idx].category_risk_tier == 2:
+    amount = _amount_for_scenario(rng, baseline_average, profile, scenario)
+    if scenario == Scenario.LEGITIMATE_ROUTINE and merchants[merchant_idx].category in {"TRAVEL", "ENTERTAINMENT"}:
         amount = _clip_amount(amount * float(rng.uniform(1.05, 1.25)))
 
-    # Seasonal variation
-    day_of_year = event_timestamp.timetuple().tm_yday
-    amount = _clip_amount(_apply_seasonal_variation(rng, amount, day_of_year))
-
-    # Device trust
-    is_device_trusted = _sample_device_trusted(rng, profile.trusted_device_rate, is_fraud, signals)
-
-    # Country mismatch
-    has_country_mismatch = _sample_country_mismatch(rng, profile.travel_rate, is_fraud, signals, profile.segment)
-
-    # Card age
-    actual_card_age = max(1, int((event_timestamp - profile.card_creation_date).days))
-    card_age_days = _sample_card_age(rng, actual_card_age, is_fraud, signals)
-
-    # Hour of day
-    hour_of_day = _sample_hour_of_day(rng, profile.hour_preference, is_fraud, signals)
-    event_timestamp = event_timestamp.replace(
-        hour=hour_of_day,
-        minute=int(rng.integers(0, 60)),
-        second=int(rng.integers(0, 60)),
-        microsecond=0,
-    )
-
-    amount_to_average_ratio = float(amount / max(1.0, user_average_amount))
-    seconds_since_last = (
-        int((event_timestamp - state.last_timestamp).total_seconds())
-        if state.last_timestamp is not None
-        else int(30 * 24 * 3600)
-    )
-
-    # Cap legit rapid streaks: if a legit user has had 6+ rapid transactions
-    # in a row (gap < 600s), force a longer gap to prevent legit users from
-    # looking like fraud bursts.
-    if not is_fraud:
-        if seconds_since_last < 600:
-            state.legit_rapid_streak += 1
-            if state.legit_rapid_streak >= 6:
-                extra_gap = int(rng.integers(3600, 14400))
-                event_timestamp = event_timestamp + timedelta(seconds=extra_gap)
-                seconds_since_last += extra_gap
-                state.legit_rapid_streak = 0
-        else:
-            state.legit_rapid_streak = 0
-
-    # Cap legit hourly transaction count: if a legit user already has 6+
-    # transactions in the current 1h window (from being randomly selected
-    # multiple times, or from prior fraud burst entries still in the deque),
-    # force a long gap and clear all windowed state so the count resets to 0.
-    if not is_fraud and len(state.recent_timestamps_1h) >= 6:
-        extra_gap = int(rng.integers(7200, 14400))
-        event_timestamp = event_timestamp + timedelta(seconds=extra_gap)
-        seconds_since_last += extra_gap
-        state.recent_timestamps_1h.clear()
-        state.recent_timestamps_5m.clear()
-        state.recent_amounts_1h.clear()
-        state.recent_merchants_1h.clear()
-
-    user_transaction_count_5m = int(len(state.recent_timestamps_5m))
-    user_transaction_count_1h = int(len(state.recent_timestamps_1h))
-
-    amount_velocity_1hour = round(float(sum(state.recent_amounts_1h)) + amount, 2)
-
-    # New features
-    user_account_age_days = max(1, int((event_timestamp - profile.account_creation_date).days))
-    day_of_week = event_timestamp.isoweekday()  # 1=Monday, 7=Sunday
-    merchant_category = merchant_registry[merchant_idx].category
-    card_type = profile.card_type
-    distinct_merchant_count_1hour = len(set(state.recent_merchants_1h)) + (1 if merchant_idx not in set(state.recent_merchants_1h) else 0)
-
-    # Update state
-    state.running_amount_sum += amount
-    state.running_amount_count += 1
-    state.last_timestamp = event_timestamp
-    state.last_amount = amount
-    state.transaction_count += 1
-    state.recent_timestamps_5m.append(event_timestamp)
-    state.recent_timestamps_1h.append(event_timestamp)
-    state.recent_amounts_1h.append(amount)
-    state.recent_merchants_1h.append(merchant_idx)
-
-    return {
-        "transaction_id": _generate_transaction_id(),
-        "user_id": state.profile.user_id,
-        "amount": round(amount, 2),
-        "user_average_amount": round(user_average_amount, 2),
-        "user_transaction_count_5min": user_transaction_count_5m,
-        "user_transaction_count_1hour": user_transaction_count_1h,
-        "seconds_since_last_transaction": seconds_since_last,
-        "amount_velocity_1hour": amount_velocity_1hour,
-        "merchant_risk_score": merchant_risk_score,
-        "is_device_trusted": bool(is_device_trusted),
-        "has_country_mismatch": bool(has_country_mismatch),
-        "amount_to_average_ratio": round(amount_to_average_ratio, 4),
-        "hour_of_day": hour_of_day,
-        "ip_risk_score": ip_risk_score,
-        "card_age_days": int(card_age_days),
-        "user_account_age_days": int(user_account_age_days),
-        "day_of_week": int(day_of_week),
-        "merchant_category": merchant_category,
-        "card_type": card_type,
-        "distinct_merchant_count_1hour": int(distinct_merchant_count_1hour),
-        "is_fraud": bool(is_fraud),
-        # Pass BURST signals back so the generation loop can queue follow-up rows
-        "_burst_signals": dict(signals) if is_fraud and FraudSignal.BURST in signals else None,
-    }
-
-
-def _generate_burst_row(
-    state: UserState,
-    rng: np.random.Generator,
-    signals: dict[FraudSignal, float],
-    ip_registry: list[IpRecord],
-    merchant_registry: list[MerchantRecord],
-    fraud_ring_indices: list[int],
-    high_risk_merchant_indices: list[int],
-    simulation_start: datetime,
-) -> dict[str, Any]:
-    """Generate a follow-up fraud transaction as part of a burst sequence."""
-    profile = state.profile
-    state.escalation_score = min(1.0, state.escalation_score + float(rng.uniform(0.01, 0.04)))
-
-    event_timestamp = _build_event_timestamp(state, rng, True, signals)
-    _prune_windows(state, event_timestamp)
-    days_elapsed = (event_timestamp - simulation_start).total_seconds() / 86400.0
-
-    user_average_amount = (
-        state.running_amount_sum / state.running_amount_count
-        if state.running_amount_count > 0
-        else profile.baseline_amount
-    )
-
-    ip_idx = _pick_ip_index(rng, profile, True, signals, fraud_ring_indices, len(ip_registry))
-
-    # Reuse the last merchant 70% of the time during bursts (fraudsters
-    # often hit the same store repeatedly).  Fall back to normal pick for
-    # diversity in the remaining 30%.
-    if state.recent_merchants_1h and float(rng.random()) < 0.70:
-        merchant_idx = state.recent_merchants_1h[-1]
+    if scenario == Scenario.ACCOUNT_TAKEOVER:
+        is_device_trusted = bool(rng.random() < 0.28)
+        has_country_mismatch = bool(rng.random() < 0.58)
+    elif scenario in {Scenario.FIRST_TRANSACTION_LARGE_PURCHASE, Scenario.SYNTHETIC_IDENTITY}:
+        is_device_trusted = bool(rng.random() < 0.22)
+        has_country_mismatch = bool(rng.random() < 0.42)
+    elif scenario == Scenario.STEALTH_FRAUD:
+        is_device_trusted = bool(rng.random() < 0.72)
+        has_country_mismatch = bool(rng.random() < 0.18)
     else:
-        merchant_idx = _pick_merchant_index(rng, profile, True, signals, high_risk_merchant_indices, len(merchant_registry))
+        is_device_trusted = bool(rng.random() < profile.trusted_device_rate)
+        has_country_mismatch = bool(rng.random() < profile.travel_rate)
 
-    ip_risk_score = _sample_ip_risk(rng, ip_registry[ip_idx], days_elapsed)
-    merchant_risk_score = _sample_merchant_risk(rng, merchant_registry[merchant_idx], days_elapsed)
-
-    amount = _sample_amount(rng, user_average_amount, True, signals, profile.segment)
-    day_of_year = event_timestamp.timetuple().tm_yday
-    amount = _clip_amount(_apply_seasonal_variation(rng, amount, day_of_year))
-
-    is_device_trusted = _sample_device_trusted(rng, profile.trusted_device_rate, True, signals)
-    has_country_mismatch = _sample_country_mismatch(rng, profile.travel_rate, True, signals, profile.segment)
-    actual_card_age = max(1, int((event_timestamp - profile.card_creation_date).days))
-    card_age_days = _sample_card_age(rng, actual_card_age, True, signals)
-    hour_of_day = _sample_hour_of_day(rng, profile.hour_preference, True, signals)
-    event_timestamp = event_timestamp.replace(
-        hour=hour_of_day,
-        minute=int(rng.integers(0, 60)),
-        second=int(rng.integers(0, 60)),
-        microsecond=0,
-    )
-
-    amount_to_average_ratio = float(amount / max(1.0, user_average_amount))
     seconds_since_last = (
-        int((event_timestamp - state.last_timestamp).total_seconds())
+        int((event_ts - state.last_timestamp).total_seconds())
         if state.last_timestamp is not None
-        else int(30 * 24 * 3600)
+        else _COLD_START_SECONDS
     )
-    user_transaction_count_5m = int(len(state.recent_timestamps_5m))
-    user_transaction_count_1h = int(len(state.recent_timestamps_1h))
+    transaction_count_5m = len(state.recent_timestamps_5m)
+    transaction_count_1h = len(state.recent_timestamps_1h)
     amount_velocity_1hour = round(float(sum(state.recent_amounts_1h)) + amount, 2)
+    distinct_merchants = len(set(state.recent_merchants_1h) | {merchant_idx})
+    amount_to_average_ratio = amount / max(1.0, baseline_average)
+    card_age_days = max(1, int((event_ts - profile.card_created_at).days))
+    account_age_days = max(1, int((event_ts - profile.account_created_at).days))
 
-    user_account_age_days = max(1, int((event_timestamp - profile.account_creation_date).days))
-    day_of_week = event_timestamp.isoweekday()
-    merchant_category = merchant_registry[merchant_idx].category
-    card_type = profile.card_type
-    distinct_merchant_count_1hour = len(set(state.recent_merchants_1h)) + (1 if merchant_idx not in set(state.recent_merchants_1h) else 0)
+    row = {
+        "transaction_id": _generate_transaction_id(),
+        "user_id": profile.user_id,
+        "amount": round(amount, 2),
+        "user_average_amount": round(baseline_average, 2),
+        "user_historical_transaction_count": int(historical_count),
+        "user_transaction_count_5min": int(transaction_count_5m),
+        "user_transaction_count_1hour": int(transaction_count_1h),
+        "seconds_since_last_transaction": int(seconds_since_last),
+        "amount_velocity_1hour": amount_velocity_1hour,
+        "merchant_risk_score": merchant_risk,
+        "is_device_trusted": bool(is_device_trusted),
+        "has_country_mismatch": bool(has_country_mismatch),
+        "amount_to_average_ratio": round(float(amount_to_average_ratio), 4),
+        "hour_of_day": int(hour),
+        "ip_risk_score": ip_risk,
+        "card_age_days": int(card_age_days),
+        "user_account_age_days": int(account_age_days),
+        "day_of_week": int(event_ts.isoweekday()),
+        "merchant_category": merchants[merchant_idx].category,
+        "card_type": profile.card_type,
+        "distinct_merchant_count_1hour": int(distinct_merchants),
+        "is_fraud": bool(is_fraud),
+        "_scenario": scenario.value,
+    }
 
     state.running_amount_sum += amount
     state.running_amount_count += 1
-    state.last_timestamp = event_timestamp
-    state.last_amount = amount
-    state.transaction_count += 1
-    state.recent_timestamps_5m.append(event_timestamp)
-    state.recent_timestamps_1h.append(event_timestamp)
+    state.last_timestamp = event_ts
+    state.recent_timestamps_5m.append(event_ts)
+    state.recent_timestamps_1h.append(event_ts)
     state.recent_amounts_1h.append(amount)
     state.recent_merchants_1h.append(merchant_idx)
-
-    return {
-        "transaction_id": _generate_transaction_id(),
-        "user_id": state.profile.user_id,
-        "amount": round(amount, 2),
-        "user_average_amount": round(user_average_amount, 2),
-        "user_transaction_count_5min": user_transaction_count_5m,
-        "user_transaction_count_1hour": user_transaction_count_1h,
-        "seconds_since_last_transaction": seconds_since_last,
-        "amount_velocity_1hour": amount_velocity_1hour,
-        "merchant_risk_score": merchant_risk_score,
-        "is_device_trusted": bool(is_device_trusted),
-        "has_country_mismatch": bool(has_country_mismatch),
-        "amount_to_average_ratio": round(amount_to_average_ratio, 4),
-        "hour_of_day": hour_of_day,
-        "ip_risk_score": ip_risk_score,
-        "card_age_days": int(card_age_days),
-        "user_account_age_days": int(user_account_age_days),
-        "day_of_week": int(day_of_week),
-        "merchant_category": merchant_category,
-        "card_type": card_type,
-        "distinct_merchant_count_1hour": int(distinct_merchant_count_1hour),
-        "is_fraud": True,
-    }
+    return row
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Data quality issues
-# ──────────────────────────────────────────────────────────────────────────────
-
-def _inject_data_quality_issues(
-    df: pd.DataFrame,
-    rng: np.random.Generator,
-    missing_rate: float = 0.02,
-    outlier_rate: float = 0.005,
-    noise_scale: float = 0.03,
-) -> pd.DataFrame:
+def _inject_data_quality_issues(df: pd.DataFrame, rng: np.random.Generator, cfg: QualityConfig) -> pd.DataFrame:
     df = df.copy()
     n = len(df)
-
     continuous_cols = [
-        "amount", "user_average_amount", "merchant_risk_score",
-        "ip_risk_score", "amount_to_average_ratio",
+        "amount", "user_average_amount", "merchant_risk_score", "ip_risk_score",
+        "amount_to_average_ratio", "amount_velocity_1hour",
     ]
     integer_cols = [
         "user_transaction_count_5min", "user_transaction_count_1hour",
-        "seconds_since_last_transaction", "card_age_days", "hour_of_day",
+        "seconds_since_last_transaction", "card_age_days", "user_account_age_days",
+        "user_historical_transaction_count",
     ]
 
-    # Sparse NaN injection
     for col in continuous_cols + integer_cols:
-        mask = rng.random(n) < missing_rate
+        mask = rng.random(n) < cfg.missing_rate
         if mask.any():
             df.loc[mask, col] = np.nan
 
-    # Outliers in continuous features
     for col in continuous_cols:
-        mask = rng.random(n) < outlier_rate
+        mask = rng.random(n) < cfg.outlier_rate
         if mask.any():
             valid = df[col].dropna()
-            if len(valid) > 0:
-                col_std = float(valid.std())
-                col_mean = float(valid.mean())
-                count = int(mask.sum())
-                signs = rng.choice([-1, 1], size=count).astype(float)
-                magnitudes = rng.uniform(3, 6, size=count)
-                df.loc[mask, col] = col_mean + signs * magnitudes * col_std
+            if len(valid):
+                df.loc[mask, col] = valid.median() * rng.uniform(0.1, 8.0, size=int(mask.sum()))
 
-    # Measurement noise
     for col in continuous_cols:
         valid_mask = df[col].notna()
         if valid_mask.any():
-            noise = rng.normal(0, noise_scale, size=int(valid_mask.sum()))
-            df.loc[valid_mask, col] = df.loc[valid_mask, col].astype(float) * (1.0 + noise)
+            df.loc[valid_mask, col] = df.loc[valid_mask, col].astype(float) * (
+                1.0 + rng.normal(0, cfg.noise_scale, size=int(valid_mask.sum()))
+            )
 
-    # Data entry errors
-    for col in ["card_age_days", "seconds_since_last_transaction"]:
-        mask = rng.random(n) < 0.003
-        if mask.any():
-            valid = df[col].dropna()
-            if len(valid) > 0:
-                df.loc[mask, col] = rng.choice(valid.values, size=int(mask.sum()))
-
-    # Clamp non-negative
-    for col in ["amount", "user_average_amount", "merchant_risk_score",
-                 "ip_risk_score", "card_age_days", "seconds_since_last_transaction"]:
+    for col in ["amount", "user_average_amount", "amount_velocity_1hour", "card_age_days", "seconds_since_last_transaction"]:
         valid = df[col].notna()
         if valid.any():
             df.loc[valid, col] = df.loc[valid, col].clip(lower=0)
-
     for col in ["merchant_risk_score", "ip_risk_score"]:
         valid = df[col].notna()
         if valid.any():
             df.loc[valid, col] = df.loc[valid, col].clip(lower=0, upper=1)
-
     return df
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Validation metrics
-# ──────────────────────────────────────────────────────────────────────────────
+def simulate(
+    row_count: int,
+    fraud_rate: float = 0.05,
+    stealth_rate: float = 0.18,
+    seed: int | None = None,
+    inject_quality_issues: bool = True,
+) -> pd.DataFrame:
+    if row_count <= 0:
+        return pd.DataFrame(columns=_OUTPUT_COLUMNS)
+
+    cfg = GeneratorConfig(fraud_rate=fraud_rate, stealth_rate=stealth_rate)
+    rng = np.random.default_rng(seed)
+    simulation_start = datetime(2026, 1, 1, 8, 0, 0)
+    ips = _build_ip_registry(rng)
+    merchants = _build_merchant_registry(rng)
+    user_count = max(160, min(900, row_count // 35 + 120))
+    profiles = _build_profiles(rng, user_count, simulation_start, ips, merchants)
+    states = {p.user_id: UserState(profile=p) for p in profiles}
+    for state in states.values():
+        if float(rng.random()) > cfg.cold_start_rate:
+            _seed_history(state, rng, simulation_start)
+
+    activity = np.array([p.activity_weight for p in profiles], dtype=float)
+    activity /= activity.sum()
+    rows: list[dict[str, Any]] = []
+    burst_queue: list[str] = []
+    max_burst_rows = int(row_count * cfg.burst_budget_rate)
+    burst_rows = 0
+    target_fraud_rows = max(1, int(row_count * fraud_rate))
+    fraud_rows = 0
+
+    for _ in tqdm(range(row_count), desc="Generating transactions", unit="tx"):
+        from_burst_queue = False
+        if burst_queue:
+            user_id = burst_queue.pop(0)
+            state = states[user_id]
+            scenario = Scenario.VELOCITY_BURST
+            burst_rows += 1
+            from_burst_queue = True
+        else:
+            profile = profiles[int(rng.choice(len(profiles), p=activity))]
+            state = states[profile.user_id]
+            scenario = _choose_scenario(state, rng, cfg)
+            if fraud_rows >= target_fraud_rows and _scenario_is_fraud(scenario):
+                scenario = (
+                    Scenario.LEGITIMATE_HIGH_VALUE
+                    if state.profile.segment in (UserSegment.HIGH_VALUE, UserSegment.BUSINESS)
+                    else Scenario.LEGITIMATE_ROUTINE
+                )
+
+        row = _materialize_row(state, rng, scenario, ips, merchants, simulation_start)
+        rows.append(row)
+        if row["is_fraud"]:
+            fraud_rows += 1
+
+        if scenario == Scenario.CARD_TESTING_THEN_LARGE_PURCHASE and fraud_rows < target_fraud_rows:
+            probe = row.copy()
+            probe["transaction_id"] = _generate_transaction_id()
+            probe["amount"] = round(max(0.99, row["user_average_amount"] * float(rng.uniform(0.02, 0.08))), 2)
+            probe["amount_to_average_ratio"] = round(probe["amount"] / max(1.0, row["user_average_amount"]), 4)
+            probe["amount_velocity_1hour"] = round(float(probe["amount"]), 2)
+            probe["is_fraud"] = True
+            rows.append(probe)
+            fraud_rows += 1
+
+        if (
+            scenario == Scenario.VELOCITY_BURST
+            and not from_burst_queue
+            and burst_rows < max_burst_rows
+            and fraud_rows < target_fraud_rows
+        ):
+            for _ in range(min(int(rng.integers(2, 7)), max_burst_rows - burst_rows - len(burst_queue))):
+                burst_queue.append(state.profile.user_id)
+
+    data = pd.DataFrame.from_records(rows)
+    scenario_counts = data.pop("_scenario").value_counts().to_dict() if "_scenario" in data else {}
+    data = data[_OUTPUT_COLUMNS]
+    if inject_quality_issues:
+        data = _inject_data_quality_issues(data, rng, cfg.quality)
+    data = data.sample(frac=1, random_state=seed).reset_index(drop=True)
+    data.attrs["scenario_counts"] = scenario_counts
+    return data
+
 
 def compute_feature_overlap(df: pd.DataFrame) -> dict[str, float]:
     fraud = df[df["is_fraud"]]
     legit = df[~df["is_fraud"]]
     overlaps: dict[str, float] = {}
-
     continuous_cols = [
         "amount", "user_average_amount", "merchant_risk_score", "ip_risk_score",
         "amount_to_average_ratio", "card_age_days", "seconds_since_last_transaction",
+        "user_historical_transaction_count",
     ]
     for col in continuous_cols:
         f_vals = fraud[col].dropna().values
@@ -1185,17 +626,13 @@ def compute_feature_overlap(df: pd.DataFrame) -> dict[str, float]:
         bins = np.histogram_bin_edges(combined, bins=50)
         hist_f, _ = np.histogram(f_vals, bins=bins, density=True)
         hist_l, _ = np.histogram(l_vals, bins=bins, density=True)
-        bin_w = float(bins[1] - bins[0])
+        bin_w = float(bins[1] - bins[0]) if len(bins) > 1 else 1.0
         overlaps[col] = round(float(min(1.0, np.sum(np.minimum(hist_f, hist_l)) * bin_w)), 4)
-
     for col in ("is_device_trusted", "has_country_mismatch", "hour_of_day"):
-        if col not in df.columns:
-            continue
         f_dist = fraud[col].value_counts(normalize=True)
         l_dist = legit[col].value_counts(normalize=True)
-        all_vals = set(f_dist.index) | set(l_dist.index)
-        overlaps[col] = round(float(sum(min(f_dist.get(v, 0), l_dist.get(v, 0)) for v in all_vals)), 4)
-
+        vals = set(f_dist.index) | set(l_dist.index)
+        overlaps[col] = round(float(sum(min(f_dist.get(v, 0), l_dist.get(v, 0)) for v in vals)), 4)
     return overlaps
 
 
@@ -1203,10 +640,9 @@ def compute_single_feature_auc(df: pd.DataFrame) -> dict[str, float]:
     from sklearn.metrics import roc_auc_score
 
     y = df["is_fraud"].astype(int)
-    feature_cols = [c for c in _OUTPUT_COLUMNS if c not in ("transaction_id", "user_id", "is_fraud", "merchant_category", "card_type")]
+    skip = {"transaction_id", "user_id", "is_fraud", "merchant_category", "card_type"}
     aucs: dict[str, float] = {}
-
-    for col in feature_cols:
+    for col in [c for c in _OUTPUT_COLUMNS if c not in skip]:
         vals = df[col].copy()
         if vals.dtype == bool or vals.dtype == object:
             vals = vals.astype(float)
@@ -1219,30 +655,31 @@ def compute_single_feature_auc(df: pd.DataFrame) -> dict[str, float]:
             aucs[col] = round(float(max(auc, 1 - auc)), 4)
         except ValueError:
             aucs[col] = 0.5
-
     return aucs
 
 
 def validate_dataset(df: pd.DataFrame) -> dict[str, Any]:
     n_fraud = int(df["is_fraud"].sum())
-
     overlaps = compute_feature_overlap(df)
     aucs = compute_single_feature_auc(df)
-
-    avg_overlap = float(np.mean(list(overlaps.values()))) if overlaps else 0.0
-    max_auc = max(aucs.values()) if aucs else 0.5
-
+    base_rate = float(df["is_fraud"].mean()) if len(df) else 0.0
+    large_cold = (
+        (df["amount"] >= 10_000)
+        & (df["user_historical_transaction_count"].fillna(0) == 0)
+    )
+    large_cold_rate = float(df.loc[large_cold, "is_fraud"].mean()) if large_cold.any() else 0.0
     return {
         "total_rows": len(df),
         "fraud_count": n_fraud,
         "legit_count": len(df) - n_fraud,
-        "fraud_rate": round(n_fraud / max(1, len(df)), 4),
+        "fraud_rate": round(base_rate, 4),
         "feature_overlaps": overlaps,
         "single_feature_aucs": aucs,
-        "avg_overlap": round(avg_overlap, 4),
-        "max_single_feature_auc": round(max_auc, 4),
-        "overlap_target_met": avg_overlap >= 0.60,
-        "auc_target_met": max_auc <= 0.70,
+        "avg_overlap": round(float(np.mean(list(overlaps.values()))) if overlaps else 0.0, 4),
+        "max_single_feature_auc": max(aucs.values()) if aucs else 0.5,
+        "large_cold_start_count": int(large_cold.sum()),
+        "large_cold_start_fraud_rate": round(large_cold_rate, 4),
+        "large_cold_start_lift": round(large_cold_rate / max(base_rate, 0.0001), 2),
     }
 
 
@@ -1256,42 +693,30 @@ def plot_feature_distributions(df: pd.DataFrame, output_path: str = "feature_dis
 
     fraud = df[df["is_fraud"]]
     legit = df[~df["is_fraud"]]
-
     plot_cols = [
         "amount", "merchant_risk_score", "ip_risk_score", "amount_to_average_ratio",
-        "card_age_days", "hour_of_day", "seconds_since_last_transaction", "is_device_trusted",
+        "user_historical_transaction_count", "seconds_since_last_transaction",
+        "is_device_trusted", "has_country_mismatch",
     ]
-
     fig, axes = plt.subplots(2, 4, figsize=(20, 10))
-    axes_flat = axes.flatten()
-
-    for idx, col in enumerate(plot_cols):
-        ax = axes_flat[idx]
+    for ax, col in zip(axes.flatten(), plot_cols):
         f_vals = fraud[col].dropna()
         l_vals = legit[col].dropna()
-
-        if col in ("is_device_trusted", "has_country_mismatch"):
+        if col in {"is_device_trusted", "has_country_mismatch"}:
             categories = sorted(set(f_vals) | set(l_vals))
             x = np.arange(len(categories))
-            width = 0.35
-            f_counts = [float((f_vals == c).sum()) / max(1, len(f_vals)) for c in categories]
-            l_counts = [float((l_vals == c).sum()) / max(1, len(l_vals)) for c in categories]
-            ax.bar(x - width / 2, l_counts, width, label="Legit", alpha=0.7, color="steelblue")
-            ax.bar(x + width / 2, f_counts, width, label="Fraud", alpha=0.7, color="firebrick")
+            ax.bar(x - 0.18, [float((l_vals == c).mean()) for c in categories], 0.35, label="Legit")
+            ax.bar(x + 0.18, [float((f_vals == c).mean()) for c in categories], 0.35, label="Fraud")
             ax.set_xticks(x)
             ax.set_xticklabels([str(c) for c in categories])
         else:
             combined = pd.concat([f_vals, l_vals])
             bins = np.histogram_bin_edges(combined, bins=50)
-            ax.hist(l_vals, bins=bins, alpha=0.6, density=True, label="Legit", color="steelblue")
-            ax.hist(f_vals, bins=bins, alpha=0.6, density=True, label="Fraud", color="firebrick")
-
-        ax.set_title(col, fontsize=10)
+            ax.hist(l_vals, bins=bins, alpha=0.6, density=True, label="Legit")
+            ax.hist(f_vals, bins=bins, alpha=0.6, density=True, label="Fraud")
+        ax.set_title(col)
         ax.legend(fontsize=8)
-
-    plt.suptitle("Feature Distributions: Fraud vs Legitimate", fontsize=14, y=1.02)
     plt.tight_layout()
-
     out_dir = os.path.dirname(output_path)
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
@@ -1300,148 +725,11 @@ def plot_feature_distributions(df: pd.DataFrame, output_path: str = "feature_dis
     return output_path
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Main simulation API
-# ──────────────────────────────────────────────────────────────────────────────
-
-def simulate(
-    row_count: int,
-    fraud_rate: float = 0.05,
-    stealth_rate: float = 0.38,
-    seed: int | None = None,
-    inject_quality_issues: bool = True,
-) -> pd.DataFrame:
-    """Simulate synthetic transactions with realistic overlapping feature distributions."""
-    if row_count <= 0:
-        return pd.DataFrame(columns=_OUTPUT_COLUMNS)
-
-    rng = np.random.default_rng(seed)
-    simulation_start = datetime(2026, 1, 1, 8, 0, 0)
-
-    ip_registry = _build_ip_registry(rng, _N_IPS)
-    merchant_registry = _build_merchant_registry(rng, _N_MERCHANTS)
-    fraud_ring_indices = [i for i, ip in enumerate(ip_registry) if ip.is_fraud_ring]
-    high_risk_merchant_indices = [i for i, m in enumerate(merchant_registry) if m.risk_score > 0.50]
-
-    user_count = max(120, min(400, row_count // 40 + 120))
-    profiles = _build_profiles(rng, user_count, simulation_start, ip_registry, merchant_registry, fraud_ring_indices)
-    states = {p.user_id: UserState(profile=p) for p in profiles}
-
-    for s in states.values():
-        _seed_hidden_history(s, rng, simulation_start)
-
-    activity_weights = _normalize_weights(np.array([p.activity_weight for p in profiles], dtype=float))
-    rows: list[dict[str, Any]] = []
-
-    # Burst queue: when a fraud BURST is triggered, we queue additional
-    # consecutive transactions for the same user so the model sees realistic
-    # high transaction-count / low seconds-since-last patterns.
-    burst_queue: list[tuple[UserProfile, dict[FraudSignal, float]]] = []
-    burst_rows_total = 0
-    max_total_burst_rows = int(row_count * 0.05)
-    target_fraud_rows = int(row_count * fraud_rate)
-    total_fraud_rows = 0
-
-    for _ in tqdm(range(row_count), desc="Generating transactions", unit="tx"):
-        if burst_queue:
-            # Continue an ongoing burst sequence for the same user
-            burst_profile, burst_signals = burst_queue.pop(0)
-            selected_profile = burst_profile
-            user_state = states[selected_profile.user_id]
-            row = _generate_burst_row(
-                user_state, rng,
-                signals=burst_signals,
-                ip_registry=ip_registry, merchant_registry=merchant_registry,
-                fraud_ring_indices=fraud_ring_indices,
-                high_risk_merchant_indices=high_risk_merchant_indices,
-                simulation_start=simulation_start,
-            )
-            burst_rows_total += 1
-        else:
-            selected_profile = profiles[int(rng.choice(len(profiles), p=activity_weights))]
-            user_state = states[selected_profile.user_id]
-
-            # Dynamically reduce fraud rate when we've already generated
-            # enough fraud rows (from base + bursts) to stay near the target.
-            effective_fraud_rate = fraud_rate if total_fraud_rows < target_fraud_rows else 0.0
-
-            row = _generate_row(
-                user_state, rng,
-                fraud_rate=effective_fraud_rate, stealth_rate=stealth_rate,
-                ip_registry=ip_registry, merchant_registry=merchant_registry,
-                fraud_ring_indices=fraud_ring_indices,
-                high_risk_merchant_indices=high_risk_merchant_indices,
-                simulation_start=simulation_start,
-            )
-
-            # If this fraud row triggered a BURST, queue follow-up transactions.
-            # Cap burst length at 3-10 and hard-cap total burst rows at 5% of
-            # row_count to create enough high-count fraud examples.
-            if row["is_fraud"] and row.get("_burst_signals"):
-                burst_signals = row.pop("_burst_signals")
-                remaining_budget = max(0, max_total_burst_rows - burst_rows_total - len(burst_queue))
-                burst_count = min(int(rng.integers(3, 11)), remaining_budget)
-                for _ in range(burst_count):
-                    burst_queue.append((selected_profile, burst_signals))
-
-        if row.get("is_fraud"):
-            total_fraud_rows += 1
-
-        # Test-then-large: for certain fraud types, prepend a small probe transaction.
-        # The probe mimics a real-world pattern where fraudsters validate a stolen card
-        # with a tiny purchase before making a large one.
-        if (
-            row["is_fraud"]
-            and user_state.transaction_count >= 2
-            and float(rng.random()) < 0.22
-        ):
-            probe_amount = _clip_amount(
-                user_state.profile.baseline_amount * float(rng.uniform(0.03, 0.12))
-            )
-            probe_ts = user_state.last_timestamp or datetime(2026, 1, 1, 8, 0, 0)
-            probe_ts = probe_ts - timedelta(seconds=int(rng.integers(30, 180)))
-            rows.append({
-                "transaction_id": _generate_transaction_id(),
-                "user_id": selected_profile.user_id,
-                "amount": round(probe_amount, 2),
-                "user_average_amount": row["user_average_amount"],
-                "user_transaction_count_5min": max(0, row["user_transaction_count_5min"] - 1),
-                "user_transaction_count_1hour": max(0, row["user_transaction_count_1hour"] - 1),
-                "seconds_since_last_transaction": int(rng.integers(60, 600)),
-                "amount_velocity_1hour": round(probe_amount, 2),
-                "merchant_risk_score": row["merchant_risk_score"],
-                "is_device_trusted": row["is_device_trusted"],
-                "has_country_mismatch": row["has_country_mismatch"],
-                "amount_to_average_ratio": round(
-                    probe_amount / max(1.0, row["user_average_amount"]), 4
-                ),
-                "hour_of_day": row["hour_of_day"],
-                "ip_risk_score": row["ip_risk_score"],
-                "card_age_days": row["card_age_days"],
-                "user_account_age_days": row["user_account_age_days"],
-                "day_of_week": row["day_of_week"],
-                "merchant_category": row["merchant_category"],
-                "card_type": row["card_type"],
-                "distinct_merchant_count_1hour": row["distinct_merchant_count_1hour"],
-                "is_fraud": True,
-            })
-
-        row.pop("_burst_signals", None)
-        rows.append(row)
-
-    data = pd.DataFrame.from_records(rows, columns=_OUTPUT_COLUMNS)
-
-    if inject_quality_issues:
-        data = _inject_data_quality_issues(data, rng)
-
-    return data.sample(frac=1, random_state=seed).reset_index(drop=True)
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate a synthetic fraud detection dataset.")
     parser.add_argument("num_rows", type=int, help="Number of rows to generate")
     parser.add_argument("--fraud-rate", type=float, default=0.05)
-    parser.add_argument("--stealth-rate", type=float, default=0.38)
+    parser.add_argument("--stealth-rate", type=float, default=0.18)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--output", type=str, default="data/transactions.csv")
     parser.add_argument("--no-quality-issues", action="store_true", help="Disable data quality issue injection")
@@ -1461,28 +749,23 @@ def main() -> None:
     if output_directory:
         os.makedirs(output_directory, exist_ok=True)
     data.to_csv(args.output, index=False)
-    print(f"Saved {len(data)} rows ({int(data['is_fraud'].sum())} fraud, {int((~data['is_fraud']).sum())} legitimate) to '{args.output}'")
+    print(f"Saved {len(data)} rows ({int(data['is_fraud'].sum())} fraud) to '{args.output}'")
 
     if args.validate:
         stats = validate_dataset(data)
-        print(f"\n{'=' * 60}")
-        print("Validation Results")
-        print(f"{'=' * 60}")
-        print(f"  Fraud rate:           {stats['fraud_rate']:.4f}")
-        print(f"  Avg feature overlap:  {stats['avg_overlap']:.4f} (target: >=0.60)")
-        print(f"  Max single-feat AUC:  {stats['max_single_feature_auc']:.4f} (target: <=0.70)")
-        print(f"  Overlap target met:   {stats['overlap_target_met']}")
-        print(f"  AUC target met:       {stats['auc_target_met']}")
-        print(f"\n  Feature overlaps:")
-        for feat, ov in sorted(stats["feature_overlaps"].items(), key=lambda x: x[1]):
-            print(f"    {feat:35s} {ov:.4f}")
-        print(f"\n  Single-feature AUCs:")
-        for feat, auc_val in sorted(stats["single_feature_aucs"].items(), key=lambda x: -x[1]):
-            print(f"    {feat:35s} {auc_val:.4f}")
+        print("\nValidation Results")
+        print(f"  Fraud rate:                 {stats['fraud_rate']:.4f}")
+        print(f"  Avg feature overlap:        {stats['avg_overlap']:.4f}")
+        print(f"  Max single-feature AUC:     {stats['max_single_feature_auc']:.4f}")
+        print(f"  Large cold-start count:     {stats['large_cold_start_count']}")
+        print(f"  Large cold-start fraud:     {stats['large_cold_start_fraud_rate']:.4f}")
+        print(f"  Large cold-start lift:      {stats['large_cold_start_lift']:.2f}x")
+        print("\n  Top single-feature AUCs:")
+        for feat, auc_val in sorted(stats["single_feature_aucs"].items(), key=lambda x: -x[1])[:10]:
+            print(f"    {feat:38s} {auc_val:.4f}")
 
     if args.plot:
-        plot_path = plot_feature_distributions(data, args.plot)
-        print(f"\nFeature distribution plots saved to '{plot_path}'")
+        print(f"\nFeature distribution plots saved to '{plot_feature_distributions(data, args.plot)}'")
 
 
 if __name__ == "__main__":

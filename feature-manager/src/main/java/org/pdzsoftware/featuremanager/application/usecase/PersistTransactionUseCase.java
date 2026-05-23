@@ -96,6 +96,7 @@ public class PersistTransactionUseCase {
                 .transactionId(input.transactionId())
                 .amount(input.amount())
                 .userAverageAmount(features.userAverageAmount())
+                .userHistoricalTransactionCount(features.userHistoricalTransactionCount())
                 .userTransactionCount5Min(features.userTransactionCount5Min())
                 .userTransactionCount1Hour(features.userTransactionCount1Hour())
                 .secondsSinceLastTransaction(features.secondsSinceLastTransaction())

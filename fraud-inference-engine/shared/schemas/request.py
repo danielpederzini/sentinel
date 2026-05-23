@@ -4,6 +4,7 @@ class FraudPredictionRequest(BaseModel):
     transaction_id: str
     amount: float = Field(gt=0)
     user_average_amount: float = Field(ge=0)
+    user_historical_transaction_count: int = Field(ge=0)
     user_transaction_count_5min: int = Field(ge=0)
     user_transaction_count_1hour: int = Field(ge=0)
     seconds_since_last_transaction: int = Field(ge=0)

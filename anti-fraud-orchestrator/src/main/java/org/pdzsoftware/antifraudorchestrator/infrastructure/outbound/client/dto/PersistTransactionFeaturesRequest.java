@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 @Builder
 public record PersistTransactionFeaturesRequest(
         BigDecimal userAverageAmount,
+        long userHistoricalTransactionCount,
         long userTransactionCount5Min,
         long userTransactionCount1Hour,
         long secondsSinceLastTransaction,
@@ -39,6 +40,7 @@ public record PersistTransactionFeaturesRequest(
     public static PersistTransactionFeaturesRequest from(FraudFeatureResponse response) {
         return PersistTransactionFeaturesRequest.builder()
                 .userAverageAmount(response.userAverageAmount())
+                .userHistoricalTransactionCount(response.userHistoricalTransactionCount())
                 .userTransactionCount5Min(response.userTransactionCount5Min())
                 .userTransactionCount1Hour(response.userTransactionCount1Hour())
                 .secondsSinceLastTransaction(response.secondsSinceLastTransaction())

@@ -6,6 +6,7 @@ public record FraudFeatureResponse(
 		String transactionId,
 		BigDecimal amount,
 		BigDecimal userAverageAmount,
+		long userHistoricalTransactionCount,
 		long userTransactionCount5Min,
 		long userTransactionCount1Hour,
 		long secondsSinceLastTransaction,

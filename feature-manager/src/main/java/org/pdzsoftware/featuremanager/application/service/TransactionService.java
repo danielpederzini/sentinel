@@ -31,6 +31,10 @@ public class TransactionService {
         return average == null ? BigDecimal.ZERO : BigDecimal.valueOf(average);
     }
 
+    public long countByUserId(String userId) {
+        return transactionRepository.countByUserId(userId);
+    }
+
     @Cacheable(cacheNames = "ipRiskScores", key = "#a0", condition = "#a0 != null && !#a0.isBlank()")
     public float findIpRiskScoreByIpAddress(String ipAddress) {
         if (StringUtils.isBlank(ipAddress)) {

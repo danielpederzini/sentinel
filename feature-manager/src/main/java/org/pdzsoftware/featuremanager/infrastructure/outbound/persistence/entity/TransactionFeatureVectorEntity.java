@@ -35,6 +35,9 @@ public class TransactionFeatureVectorEntity {
     private BigDecimal userAverageAmount;
 
     @Column(nullable = false)
+    private long userHistoricalTransactionCount;
+
+    @Column(nullable = false)
     private long userTransactionCount5Min;
 
     @Column(nullable = false)

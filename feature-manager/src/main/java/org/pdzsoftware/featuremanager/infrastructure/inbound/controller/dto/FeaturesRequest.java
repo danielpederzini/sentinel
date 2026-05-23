@@ -6,6 +6,7 @@ import java.math.BigDecimal;
 
 public record FeaturesRequest(
         @NotNull BigDecimal userAverageAmount,
+        long userHistoricalTransactionCount,
         long userTransactionCount5Min,
         long userTransactionCount1Hour,
         long secondsSinceLastTransaction,

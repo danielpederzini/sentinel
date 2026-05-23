@@ -25,6 +25,8 @@ import java.time.LocalDateTime;
 @Component
 @RequiredArgsConstructor
 public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureRequest, FraudFeatureResponse> {
+    private static final BigDecimal COLD_START_AVERAGE_AMOUNT = BigDecimal.valueOf(100);
+
     private final UserService userService;
     private final MerchantService merchantService;
     private final CardService cardService;
@@ -41,12 +43,10 @@ public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureReques
             CardEntity cardEntity = cardService.getByIdOrThrow(input.cardId());
 
             BigDecimal rawAverageAmount = transactionService.findAverageAmountByUserId(input.userId());
-            // When there is no transaction history, use the current amount as the
-            // fallback average.  This matches the training data where first
-            // transactions use the user's baseline amount (≈ same magnitude).
+            long userHistoricalTransactionCount = transactionService.countByUserId(input.userId());
             BigDecimal averageAmount = rawAverageAmount.compareTo(BigDecimal.ZERO) > 0
                     ? rawAverageAmount
-                    : input.amount();
+                    : COLD_START_AVERAGE_AMOUNT;
             float amountToAverageRatio = getAmountToAverageRatio(input.amount(), averageAmount);
             boolean hasCountryMismatch = !userEntity.getHomeCountryCode().equals(input.countryCode());
             boolean isDeviceTrusted = trustedDeviceService.existsById(input.deviceId());
@@ -89,6 +89,7 @@ public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureReques
                     .transactionId(input.transactionId())
                     .amount(input.amount())
                     .userAverageAmount(averageAmount)
+                    .userHistoricalTransactionCount(userHistoricalTransactionCount)
                     .userTransactionCount5Min(transactionCount5Min)
                     .userTransactionCount1Hour(transactionCount1Hour)
                     .secondsSinceLastTransaction(secondsSinceLastTransaction)

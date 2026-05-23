@@ -65,6 +65,7 @@ def _build_feature_values(request: FraudPredictionRequest) -> dict[str, float | 
     return {
         "amount": request.amount,
         "user_average_amount": request.user_average_amount,
+        "user_historical_transaction_count": request.user_historical_transaction_count,
         "user_transaction_count_5min": request.user_transaction_count_5min,
         "user_transaction_count_1hour": request.user_transaction_count_1hour,
         "seconds_since_last_transaction": request.seconds_since_last_transaction,
@@ -94,6 +95,33 @@ def _build_feature_values(request: FraudPredictionRequest) -> dict[str, float | 
         "is_night": request.is_night,
         "velocity_intensity": request.velocity_intensity,
     }
+
+
+def _validate_model_feature_contract(feature_names: list[str]) -> None:
+    available_fields = set(FraudPredictionRequest.model_fields.keys())
+    mapped_fields = set(_build_feature_values(FraudPredictionRequest(
+        transaction_id="contract-check",
+        amount=1.0,
+        user_average_amount=1.0,
+        user_historical_transaction_count=0,
+        user_transaction_count_5min=0,
+        user_transaction_count_1hour=0,
+        seconds_since_last_transaction=0,
+        amount_velocity_1hour=0.0,
+        merchant_risk_score=0.0,
+        is_device_trusted=True,
+        has_country_mismatch=False,
+        amount_to_average_ratio=1.0,
+        hour_of_day=0,
+        ip_risk_score=0.0,
+        card_age_days=0,
+    )).keys())
+    missing = [name for name in feature_names if name not in available_fields and name not in mapped_fields]
+    if missing:
+        raise ModelLoadException(
+            "Model feature contract mismatch. Request schema cannot provide: "
+            + ", ".join(sorted(missing))
+        )
 
 
 def _build_explainability(
@@ -146,6 +174,7 @@ async def lifespan(app: FastAPI):
         _state["threshold"] = metrics["threshold"]
         _state["version"] = version
         _state["feature_names"] = feature_names
+        _validate_model_feature_contract(feature_names)
         _state["explainer"] = shap.TreeExplainer(model)
         print(f"Loaded LightGBM model version {version} with threshold {_state['threshold']:.4f}")
     except ModelLoadException as exception:
@@ -230,7 +259,12 @@ def score(request: FraudPredictionRequest) -> FraudPredictionResponse:
 
         feature_names: list[str] = _state["feature_names"]
         feature_values = _build_feature_values(request)
-        feature_vector = np.array([[float(feature_values.get(f, 0.0)) for f in feature_names]])
+        missing_features = [feature for feature in feature_names if feature not in feature_values]
+        if missing_features:
+            raise PredictionException(
+                "Request is missing model features: " + ", ".join(sorted(missing_features))
+            )
+        feature_vector = np.array([[float(feature_values[f]) for f in feature_names]])
 
         model: lgb.LGBMClassifier = _state["model"]
         raw_probability: float = float(model.predict_proba(feature_vector)[0, 1])

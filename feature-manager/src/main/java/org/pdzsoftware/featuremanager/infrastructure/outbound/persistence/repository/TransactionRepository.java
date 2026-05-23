@@ -6,6 +6,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface TransactionRepository extends JpaRepository<TransactionEntity, String> {
+    long countByUserId(String userId);
+
     @Query("select avg(t.amount) from TransactionEntity t where t.user.id = :userId")
     Double findAverageAmountByUserId(@Param("userId") String userId);
 

@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 @Builder
 public record FraudFeaturesMessage(
         BigDecimal userAverageAmount,
+        long userHistoricalTransactionCount,
         long userTransactionCount5Min,
         long userTransactionCount1Hour,
         long secondsSinceLastTransaction,
@@ -44,6 +45,7 @@ public record FraudFeaturesMessage(
     public static FraudFeaturesMessage from(FraudFeatureResponse fraudFeatureResponse) {
         return FraudFeaturesMessage.builder()
                 .userAverageAmount(fraudFeatureResponse.userAverageAmount())
+                .userHistoricalTransactionCount(fraudFeatureResponse.userHistoricalTransactionCount())
                 .userTransactionCount5Min(fraudFeatureResponse.userTransactionCount5Min())
                 .userTransactionCount1Hour(fraudFeatureResponse.userTransactionCount1Hour())
                 .secondsSinceLastTransaction(fraudFeatureResponse.secondsSinceLastTransaction())
