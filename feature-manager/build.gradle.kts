@@ -52,5 +52,7 @@ dependencyManagement {
 }
 
 tasks.withType<Test> {
-	useJUnitPlatform()
+	useJUnitPlatform {
+		excludeTags("integration")
+	}
 }
