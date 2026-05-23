@@ -326,17 +326,6 @@ def train_model(
     for i in sorted_idx[:15]:
         print(f"  {feature_names[i]:35s} {importances[i]:>6d}")
 
-    # ── Permutation importance ──
-    print("\nComputing permutation importance (this may take a moment)...")
-    perm_result = permutation_importance(
-        final_model, X_test, y_test,
-        n_repeats=10, random_state=42, scoring="average_precision",
-    )
-    perm_sorted_idx = np.argsort(perm_result.importances_mean)[::-1]
-    print("\nTop-15 feature importances (permutation, PR-AUC drop):")
-    for i in perm_sorted_idx[:15]:
-        print(f"  {feature_names[i]:35s} {perm_result.importances_mean[i]:.4f} ± {perm_result.importances_std[i]:.4f}")
-
     # ── Save ──
     os.makedirs(model_output_directory, exist_ok=True)
 
