@@ -7,6 +7,22 @@ import java.time.LocalDateTime;
 
 public final class TestConstants {
 
+    public static final String FRAUD_FEATURES_API_PATH = "/api/v1/fraud-features";
+    public static final String TRANSACTIONS_API_PATH = "/api/v1/transactions";
+
+    public static final int HTTP_STATUS_CREATED = 201;
+    public static final int HTTP_STATUS_BAD_REQUEST = 400;
+    public static final int HTTP_STATUS_FORBIDDEN = 403;
+    public static final int HTTP_STATUS_NOT_FOUND = 404;
+    public static final int HTTP_STATUS_INTERNAL_SERVER_ERROR = 500;
+
+    public static final String VALIDATION_FIELD_USER_ID = "userId";
+    public static final String VALIDATION_MESSAGE_NOT_BLANK = "must not be blank";
+    public static final String VALIDATION_FAILED_PREFIX = "Validation failed:";
+    public static final String RESPONSE_STATUS_REASON = "Forbidden action";
+    public static final String UNEXPECTED_ERROR_MESSAGE = "Something broke";
+    public static final String UNEXPECTED_ERROR_PREFIX = "An unexpected error occurred:";
+
     public static final String USER_ID = "user-1";
     public static final String CARD_ID = "card-1";
     public static final String MERCHANT_ID = "merchant-1";

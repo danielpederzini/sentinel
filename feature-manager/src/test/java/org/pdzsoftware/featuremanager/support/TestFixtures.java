@@ -6,6 +6,7 @@ import org.pdzsoftware.featuremanager.domain.enums.MerchantCategory;
 import org.pdzsoftware.featuremanager.domain.enums.RiskLevel;
 import org.pdzsoftware.featuremanager.infrastructure.inbound.controller.dto.FeaturesRequest;
 import org.pdzsoftware.featuremanager.infrastructure.inbound.controller.dto.FraudFeatureRequest;
+import org.pdzsoftware.featuremanager.infrastructure.inbound.controller.dto.FraudFeatureResponse;
 import org.pdzsoftware.featuremanager.infrastructure.inbound.controller.dto.PersistTransactionRequest;
 import org.pdzsoftware.featuremanager.infrastructure.inbound.controller.dto.PredictionRequest;
 import org.pdzsoftware.featuremanager.infrastructure.outbound.persistence.entity.CardEntity;
@@ -48,6 +49,11 @@ import static org.pdzsoftware.featuremanager.support.TestConstants.MODEL_VERSION
 import static org.pdzsoftware.featuremanager.support.TestConstants.PERSIST_CREATED_HOURS_AGO;
 import static org.pdzsoftware.featuremanager.support.TestConstants.PERSIST_TRANSACTION_AMOUNT;
 import static org.pdzsoftware.featuremanager.support.TestConstants.COLD_START_AVERAGE_AMOUNT;
+import static org.pdzsoftware.featuremanager.support.TestConstants.CREATION_AFTERNOON;
+import static org.pdzsoftware.featuremanager.support.TestConstants.IP_RISK_SCORE_STUB;
+import static org.pdzsoftware.featuremanager.support.TestConstants.MERCHANT_RISK_SCORE;
+import static org.pdzsoftware.featuremanager.support.TestConstants.TRANSACTION_AMOUNT_LARGE;
+import static org.pdzsoftware.featuremanager.support.TestConstants.TRANSACTION_ID_1;
 import static org.pdzsoftware.featuremanager.support.TestConstants.COUNTRY_IP_RISK_MIN;
 import static org.pdzsoftware.featuremanager.support.TestConstants.MERCHANT_AGE_YEARS;
 import static org.pdzsoftware.featuremanager.support.TestConstants.USER_BIRTH_DATE;
@@ -56,6 +62,52 @@ import static org.pdzsoftware.featuremanager.support.TestConstants.USER_EMAIL;
 public final class TestFixtures {
 
     private TestFixtures() {
+    }
+
+    public static FraudFeatureRequest fraudFeatureRequestWithId() {
+        return fraudFeatureRequest(
+                TRANSACTION_ID_1,
+                TestConstants.USER_ID,
+                CountryCode.US,
+                CREATION_AFTERNOON,
+                TRANSACTION_AMOUNT_LARGE);
+    }
+
+    public static FraudFeatureResponse fraudFeatureResponse() {
+        return FraudFeatureResponse.builder()
+                .transactionId(TRANSACTION_ID_1)
+                .amount(TRANSACTION_AMOUNT_LARGE)
+                .userAverageAmount(COLD_START_AVERAGE_AMOUNT)
+                .userHistoricalTransactionCount(FEATURE_HISTORICAL_COUNT)
+                .userTransactionCount5Min(FEATURE_TXN_COUNT_5MIN)
+                .userTransactionCount1Hour(FEATURE_TXN_COUNT_1HOUR)
+                .secondsSinceLastTransaction(FEATURE_SECONDS_SINCE_LAST)
+                .merchantRiskScore(MERCHANT_RISK_SCORE)
+                .isDeviceTrusted(true)
+                .hasCountryMismatch(false)
+                .amountToAverageRatio(FEATURE_AMOUNT_TO_AVERAGE_RATIO)
+                .hourOfDay(FEATURE_HOUR_OF_DAY)
+                .ipRiskScore(IP_RISK_SCORE_STUB)
+                .cardAgeDays(FEATURE_CARD_AGE_DAYS)
+                .amountVelocity1Hour(BigDecimal.TEN)
+                .userAccountAgeDays(FEATURE_USER_ACCOUNT_AGE_DAYS)
+                .dayOfWeek(FEATURE_DAY_OF_WEEK)
+                .merchantCategory(FEATURE_MERCHANT_CATEGORY)
+                .cardType(FEATURE_CARD_TYPE)
+                .distinctMerchantCount1Hour(FEATURE_DISTINCT_MERCHANT_COUNT)
+                .logAmount(FEATURE_LOG_AMOUNT)
+                .logSecondsSinceLastTransaction(FEATURE_LOG_SECONDS)
+                .logVelocity1Hour(FEATURE_LOG_VELOCITY)
+                .amountTimesMerchantRisk(FEATURE_AMOUNT_TIMES_MERCHANT_RISK)
+                .riskScoreProduct(FEATURE_RISK_SCORE_PRODUCT)
+                .ipDeviceRisk(COUNTRY_IP_RISK_MIN)
+                .countryIpRisk(COUNTRY_IP_RISK_MIN)
+                .velocityAmountInteraction(FEATURE_VELOCITY_AMOUNT_INTERACTION)
+                .recencyVelocity(FEATURE_RECENCY_VELOCITY)
+                .amountDeviation(FEATURE_AMOUNT_DEVIATION)
+                .isNight(false)
+                .velocityIntensity(FEATURE_VELOCITY_INTENSITY)
+                .build();
     }
 
     public static FraudFeatureRequest fraudFeatureRequest(
