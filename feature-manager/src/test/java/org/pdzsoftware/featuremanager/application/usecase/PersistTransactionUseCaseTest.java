@@ -23,6 +23,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.pdzsoftware.featuremanager.support.TestConstants.CARD_ID;
+import static org.pdzsoftware.featuremanager.support.TestConstants.DEVICE_ID;
+import static org.pdzsoftware.featuremanager.support.TestConstants.MERCHANT_ID;
+import static org.pdzsoftware.featuremanager.support.TestConstants.TRANSACTION_ID_1;
+import static org.pdzsoftware.featuremanager.support.TestConstants.TRANSACTION_ID_2;
+import static org.pdzsoftware.featuremanager.support.TestConstants.TRANSACTION_ID_3;
+import static org.pdzsoftware.featuremanager.support.TestConstants.TRANSACTION_ID_4;
+import static org.pdzsoftware.featuremanager.support.TestConstants.TRANSACTION_ID_5;
+import static org.pdzsoftware.featuremanager.support.TestConstants.USER_ID;
 
 @ExtendWith(MockitoExtension.class)
 class PersistTransactionUseCaseTest {
@@ -43,21 +52,21 @@ class PersistTransactionUseCaseTest {
 
     @Test
     void execute_shouldPersistTransaction_whenAllIdsExist() {
-        PersistTransactionRequest request = TestFixtures.persistTransactionRequest("txn-1");
-        when(userService.existsById("user-1")).thenReturn(true);
-        when(merchantService.existsById("merchant-1")).thenReturn(true);
-        when(cardService.existsById("card-1")).thenReturn(true);
-        when(trustedDeviceService.existsById("device-1")).thenReturn(true);
-        when(transactionService.save(any(TransactionEntity.class))).thenReturn("txn-1");
+        PersistTransactionRequest request = TestFixtures.persistTransactionRequest(TRANSACTION_ID_1);
+        when(userService.existsById(USER_ID)).thenReturn(true);
+        when(merchantService.existsById(MERCHANT_ID)).thenReturn(true);
+        when(cardService.existsById(CARD_ID)).thenReturn(true);
+        when(trustedDeviceService.existsById(DEVICE_ID)).thenReturn(true);
+        when(transactionService.save(any(TransactionEntity.class))).thenReturn(TRANSACTION_ID_1);
 
         String savedId = persistTransactionUseCase.execute(request);
 
-        assertThat(savedId).isEqualTo("txn-1");
+        assertThat(savedId).isEqualTo(TRANSACTION_ID_1);
 
         ArgumentCaptor<TransactionEntity> captor = ArgumentCaptor.forClass(TransactionEntity.class);
         verify(transactionService).save(captor.capture());
         TransactionEntity saved = captor.getValue();
-        assertThat(saved.getId()).isEqualTo("txn-1");
+        assertThat(saved.getId()).isEqualTo(TRANSACTION_ID_1);
         assertThat(saved.getFeatureVector()).isNotNull();
         assertThat(saved.getPrediction()).isNotNull();
         assertThat(saved.getFeatureVector().getTransaction()).isSameAs(saved);
@@ -66,19 +75,19 @@ class PersistTransactionUseCaseTest {
 
     @Test
     void execute_shouldThrowUserNotFound_whenUserMissing() {
-        PersistTransactionRequest request = TestFixtures.persistTransactionRequest("txn-2");
-        when(userService.existsById("user-1")).thenReturn(false);
+        PersistTransactionRequest request = TestFixtures.persistTransactionRequest(TRANSACTION_ID_2);
+        when(userService.existsById(USER_ID)).thenReturn(false);
 
         assertThatThrownBy(() -> persistTransactionUseCase.execute(request))
                 .isInstanceOf(UserNotFoundException.class)
-                .hasMessageContaining("user-1");
+                .hasMessageContaining(USER_ID);
     }
 
     @Test
     void execute_shouldThrowMerchantNotFound_whenMerchantMissing() {
-        PersistTransactionRequest request = TestFixtures.persistTransactionRequest("txn-3");
-        when(userService.existsById("user-1")).thenReturn(true);
-        when(merchantService.existsById("merchant-1")).thenReturn(false);
+        PersistTransactionRequest request = TestFixtures.persistTransactionRequest(TRANSACTION_ID_3);
+        when(userService.existsById(USER_ID)).thenReturn(true);
+        when(merchantService.existsById(MERCHANT_ID)).thenReturn(false);
 
         assertThatThrownBy(() -> persistTransactionUseCase.execute(request))
                 .isInstanceOf(MerchantNotFoundException.class);
@@ -86,10 +95,10 @@ class PersistTransactionUseCaseTest {
 
     @Test
     void execute_shouldThrowCardNotFound_whenCardMissing() {
-        PersistTransactionRequest request = TestFixtures.persistTransactionRequest("txn-4");
-        when(userService.existsById("user-1")).thenReturn(true);
-        when(merchantService.existsById("merchant-1")).thenReturn(true);
-        when(cardService.existsById("card-1")).thenReturn(false);
+        PersistTransactionRequest request = TestFixtures.persistTransactionRequest(TRANSACTION_ID_4);
+        when(userService.existsById(USER_ID)).thenReturn(true);
+        when(merchantService.existsById(MERCHANT_ID)).thenReturn(true);
+        when(cardService.existsById(CARD_ID)).thenReturn(false);
 
         assertThatThrownBy(() -> persistTransactionUseCase.execute(request))
                 .isInstanceOf(CardNotFoundException.class);
@@ -97,14 +106,14 @@ class PersistTransactionUseCaseTest {
 
     @Test
     void execute_shouldThrow_whenDeviceIdProvidedButNotFound() {
-        PersistTransactionRequest request = TestFixtures.persistTransactionRequest("txn-5");
-        when(userService.existsById("user-1")).thenReturn(true);
-        when(merchantService.existsById("merchant-1")).thenReturn(true);
-        when(cardService.existsById("card-1")).thenReturn(true);
-        when(trustedDeviceService.existsById("device-1")).thenReturn(false);
+        PersistTransactionRequest request = TestFixtures.persistTransactionRequest(TRANSACTION_ID_5);
+        when(userService.existsById(USER_ID)).thenReturn(true);
+        when(merchantService.existsById(MERCHANT_ID)).thenReturn(true);
+        when(cardService.existsById(CARD_ID)).thenReturn(true);
+        when(trustedDeviceService.existsById(DEVICE_ID)).thenReturn(false);
 
         assertThatThrownBy(() -> persistTransactionUseCase.execute(request))
                 .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("device-1");
+                .hasMessageContaining(DEVICE_ID);
     }
 }

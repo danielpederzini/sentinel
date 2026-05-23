@@ -18,6 +18,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.pdzsoftware.featuremanager.support.TestConstants.CARD_ID;
+import static org.pdzsoftware.featuremanager.support.TestConstants.MISSING_ID;
 
 @ExtendWith(MockitoExtension.class)
 class CardServiceTest {
@@ -30,29 +32,29 @@ class CardServiceTest {
 
     @Test
     void getByIdOrThrow_shouldReturnCard_whenFound() {
-        CardEntity card = TestFixtures.card("card-1", CardType.CREDIT, LocalDateTime.now());
-        when(cardRepository.findById("card-1")).thenReturn(Optional.of(card));
+        CardEntity card = TestFixtures.card(CARD_ID, CardType.CREDIT, LocalDateTime.now());
+        when(cardRepository.findById(CARD_ID)).thenReturn(Optional.of(card));
 
-        CardEntity result = cardService.getByIdOrThrow("card-1");
+        CardEntity result = cardService.getByIdOrThrow(CARD_ID);
 
         assertThat(result).isSameAs(card);
-        verify(cardRepository).findById("card-1");
+        verify(cardRepository).findById(CARD_ID);
     }
 
     @Test
     void getByIdOrThrow_shouldThrow_whenNotFound() {
-        when(cardRepository.findById("missing")).thenReturn(Optional.empty());
+        when(cardRepository.findById(MISSING_ID)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> cardService.getByIdOrThrow("missing"))
+        assertThatThrownBy(() -> cardService.getByIdOrThrow(MISSING_ID))
                 .isInstanceOf(CardNotFoundException.class)
-                .hasMessageContaining("missing");
+                .hasMessageContaining(MISSING_ID);
     }
 
     @Test
     void existsById_shouldDelegateToRepository() {
-        when(cardRepository.existsById("card-1")).thenReturn(false);
+        when(cardRepository.existsById(CARD_ID)).thenReturn(false);
 
-        assertThat(cardService.existsById("card-1")).isFalse();
-        verify(cardRepository).existsById("card-1");
+        assertThat(cardService.existsById(CARD_ID)).isFalse();
+        verify(cardRepository).existsById(CARD_ID);
     }
 }

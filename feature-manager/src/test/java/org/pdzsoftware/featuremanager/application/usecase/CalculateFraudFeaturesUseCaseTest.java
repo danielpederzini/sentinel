@@ -30,6 +30,35 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.pdzsoftware.featuremanager.support.TestConstants.AMOUNT_TO_AVERAGE_RATIO_COLD_START;
+import static org.pdzsoftware.featuremanager.support.TestConstants.AMOUNT_VELOCITY_STUB;
+import static org.pdzsoftware.featuremanager.support.TestConstants.CARD_AGE_DAYS;
+import static org.pdzsoftware.featuremanager.support.TestConstants.COLD_START_AVERAGE_AMOUNT;
+import static org.pdzsoftware.featuremanager.support.TestConstants.COUNTRY_IP_RISK_MIN;
+import static org.pdzsoftware.featuremanager.support.TestConstants.CREATION_AFTERNOON;
+import static org.pdzsoftware.featuremanager.support.TestConstants.CREATION_LATE_NIGHT;
+import static org.pdzsoftware.featuremanager.support.TestConstants.CREATION_MORNING;
+import static org.pdzsoftware.featuremanager.support.TestConstants.DISTINCT_MERCHANT_COUNT_STUB;
+import static org.pdzsoftware.featuremanager.support.TestConstants.ERROR_MESSAGE_DB_DOWN;
+import static org.pdzsoftware.featuremanager.support.TestConstants.HISTORICAL_TRANSACTION_COUNT;
+import static org.pdzsoftware.featuremanager.support.TestConstants.HISTORICAL_TRANSACTION_COUNT_NONE;
+import static org.pdzsoftware.featuremanager.support.TestConstants.HISTORICAL_TRANSACTION_COUNT_STUB;
+import static org.pdzsoftware.featuremanager.support.TestConstants.IP_RISK_SCORE_STUB;
+import static org.pdzsoftware.featuremanager.support.TestConstants.MERCHANT_ID;
+import static org.pdzsoftware.featuremanager.support.TestConstants.MERCHANT_RISK_SCORE;
+import static org.pdzsoftware.featuremanager.support.TestConstants.NIGHT_HOUR;
+import static org.pdzsoftware.featuremanager.support.TestConstants.SECONDS_SINCE_LAST_STUB;
+import static org.pdzsoftware.featuremanager.support.TestConstants.TRANSACTION_AMOUNT_LARGE;
+import static org.pdzsoftware.featuremanager.support.TestConstants.TRANSACTION_AMOUNT_MEDIUM;
+import static org.pdzsoftware.featuremanager.support.TestConstants.TRANSACTION_AMOUNT_SMALL;
+import static org.pdzsoftware.featuremanager.support.TestConstants.TRANSACTION_COUNT_1HOUR_STUB;
+import static org.pdzsoftware.featuremanager.support.TestConstants.TRANSACTION_COUNT_5MIN_STUB;
+import static org.pdzsoftware.featuremanager.support.TestConstants.TRANSACTION_ID_1;
+import static org.pdzsoftware.featuremanager.support.TestConstants.TRANSACTION_ID_2;
+import static org.pdzsoftware.featuremanager.support.TestConstants.TRANSACTION_ID_3;
+import static org.pdzsoftware.featuremanager.support.TestConstants.TRANSACTION_ID_FAIL;
+import static org.pdzsoftware.featuremanager.support.TestConstants.USER_AGE_YEARS;
+import static org.pdzsoftware.featuremanager.support.TestConstants.USER_ID;
 
 @ExtendWith(MockitoExtension.class)
 class CalculateFraudFeaturesUseCaseTest {
@@ -52,58 +81,55 @@ class CalculateFraudFeaturesUseCaseTest {
 
     @Test
     void execute_shouldUseColdStartAverage_whenHistoricalAverageIsZero() {
-        LocalDateTime created = LocalDateTime.of(2024, 6, 15, 14, 0);
         FraudFeatureRequest request = TestFixtures.fraudFeatureRequest(
-                "txn-1", "user-1", CountryCode.US, created, BigDecimal.valueOf(200));
+                TRANSACTION_ID_1, USER_ID, CountryCode.US, CREATION_AFTERNOON, TRANSACTION_AMOUNT_LARGE);
 
-        stubHappyPath(request, CountryCode.US, created, BigDecimal.ZERO, 0L);
+        stubHappyPath(request, CountryCode.US, CREATION_AFTERNOON, BigDecimal.ZERO, HISTORICAL_TRANSACTION_COUNT_NONE);
 
         FraudFeatureResponse response = calculateFraudFeaturesUseCase.execute(request);
 
-        assertThat(response.userAverageAmount()).isEqualByComparingTo("100");
-        assertThat(response.amountToAverageRatio()).isEqualTo(2.0f);
+        assertThat(response.userAverageAmount()).isEqualByComparingTo(COLD_START_AVERAGE_AMOUNT);
+        assertThat(response.amountToAverageRatio()).isEqualTo(AMOUNT_TO_AVERAGE_RATIO_COLD_START);
         verify(featureCacheService).recordUserTransaction(
-                eq("user-1"), eq("txn-1"), eq(BigDecimal.valueOf(200)), eq("merchant-1"));
+                eq(USER_ID), eq(TRANSACTION_ID_1), eq(TRANSACTION_AMOUNT_LARGE), eq(MERCHANT_ID));
     }
 
     @Test
     void execute_shouldFlagCountryMismatch_whenTransactionCountryDiffersFromHome() {
-        LocalDateTime created = LocalDateTime.of(2024, 6, 15, 10, 0);
         FraudFeatureRequest request = TestFixtures.fraudFeatureRequest(
-                "txn-2", "user-1", CountryCode.BR, created, BigDecimal.valueOf(50));
+                TRANSACTION_ID_2, USER_ID, CountryCode.BR, CREATION_MORNING, TRANSACTION_AMOUNT_MEDIUM);
 
-        stubHappyPath(request, CountryCode.US, created, BigDecimal.valueOf(100), 3L);
+        stubHappyPath(request, CountryCode.US, CREATION_MORNING, COLD_START_AVERAGE_AMOUNT, HISTORICAL_TRANSACTION_COUNT);
 
         FraudFeatureResponse response = calculateFraudFeaturesUseCase.execute(request);
 
         assertThat(response.hasCountryMismatch()).isTrue();
-        assertThat(response.countryIpRisk()).isGreaterThan(0.0);
+        assertThat(response.countryIpRisk()).isGreaterThan(COUNTRY_IP_RISK_MIN);
     }
 
     @Test
     void execute_shouldMarkNightTransaction_whenHourIsLate() {
-        LocalDateTime created = LocalDateTime.of(2024, 6, 15, 23, 0);
         FraudFeatureRequest request = TestFixtures.fraudFeatureRequest(
-                "txn-3", "user-1", CountryCode.US, created, BigDecimal.TEN);
+                TRANSACTION_ID_3, USER_ID, CountryCode.US, CREATION_LATE_NIGHT, TRANSACTION_AMOUNT_SMALL);
 
-        stubHappyPath(request, CountryCode.US, created, BigDecimal.valueOf(100), 1L);
+        stubHappyPath(request, CountryCode.US, CREATION_LATE_NIGHT, COLD_START_AVERAGE_AMOUNT, HISTORICAL_TRANSACTION_COUNT_STUB);
 
         FraudFeatureResponse response = calculateFraudFeaturesUseCase.execute(request);
 
         assertThat(response.isNight()).isTrue();
-        assertThat(response.hourOfDay()).isEqualTo(23);
+        assertThat(response.hourOfDay()).isEqualTo(NIGHT_HOUR);
     }
 
     @Test
     void execute_shouldWrapRuntimeExceptions() {
         FraudFeatureRequest request = TestFixtures.fraudFeatureRequest(
-                "txn-fail", "user-1", CountryCode.US, LocalDateTime.now(), BigDecimal.TEN);
-        when(userService.getByIdOrThrow("user-1")).thenThrow(new RuntimeException("db down"));
+                TRANSACTION_ID_FAIL, USER_ID, CountryCode.US, LocalDateTime.now(), TRANSACTION_AMOUNT_SMALL);
+        when(userService.getByIdOrThrow(USER_ID)).thenThrow(new RuntimeException(ERROR_MESSAGE_DB_DOWN));
 
         assertThatThrownBy(() -> calculateFraudFeaturesUseCase.execute(request))
                 .isInstanceOf(FeatureCalculationException.class)
-                .hasMessageContaining("txn-fail")
-                .hasRootCauseMessage("db down");
+                .hasMessageContaining(TRANSACTION_ID_FAIL)
+                .hasRootCauseMessage(ERROR_MESSAGE_DB_DOWN);
     }
 
     private void stubHappyPath(
@@ -113,9 +139,9 @@ class CalculateFraudFeaturesUseCaseTest {
             BigDecimal historicalAverage,
             long historicalCount
     ) {
-        UserEntity user = TestFixtures.user(request.userId(), homeCountry, created.minusYears(2));
-        MerchantEntity merchant = TestFixtures.merchant(request.merchantId(), MerchantCategory.TRAVEL, 0.5f);
-        CardEntity card = TestFixtures.card(request.cardId(), CardType.DEBIT, created.minusDays(30));
+        UserEntity user = TestFixtures.user(request.userId(), homeCountry, created.minusYears(USER_AGE_YEARS));
+        MerchantEntity merchant = TestFixtures.merchant(request.merchantId(), MerchantCategory.TRAVEL, MERCHANT_RISK_SCORE);
+        CardEntity card = TestFixtures.card(request.cardId(), CardType.DEBIT, created.minusDays(CARD_AGE_DAYS));
 
         when(userService.getByIdOrThrow(request.userId())).thenReturn(user);
         when(merchantService.getByIdOrThrow(request.merchantId())).thenReturn(merchant);
@@ -123,11 +149,11 @@ class CalculateFraudFeaturesUseCaseTest {
         when(transactionService.findAverageAmountByUserId(request.userId())).thenReturn(historicalAverage);
         when(transactionService.countByUserId(request.userId())).thenReturn(historicalCount);
         when(trustedDeviceService.existsById(request.deviceId())).thenReturn(true);
-        when(transactionService.findIpRiskScoreByIpAddress(request.ipAddress())).thenReturn(0.4f);
-        when(featureCacheService.getSecondsSinceLastTransaction(request.userId())).thenReturn(600L);
-        when(featureCacheService.getUserTransactionCount5Min(request.userId())).thenReturn(1L);
-        when(featureCacheService.getUserTransactionCount1Hour(request.userId())).thenReturn(2L);
-        when(featureCacheService.getAmountVelocity1Hour(request.userId())).thenReturn(BigDecimal.valueOf(75));
-        when(featureCacheService.getDistinctMerchantCount1Hour(request.userId())).thenReturn(1L);
+        when(transactionService.findIpRiskScoreByIpAddress(request.ipAddress())).thenReturn(IP_RISK_SCORE_STUB);
+        when(featureCacheService.getSecondsSinceLastTransaction(request.userId())).thenReturn(SECONDS_SINCE_LAST_STUB);
+        when(featureCacheService.getUserTransactionCount5Min(request.userId())).thenReturn(TRANSACTION_COUNT_5MIN_STUB);
+        when(featureCacheService.getUserTransactionCount1Hour(request.userId())).thenReturn(TRANSACTION_COUNT_1HOUR_STUB);
+        when(featureCacheService.getAmountVelocity1Hour(request.userId())).thenReturn(AMOUNT_VELOCITY_STUB);
+        when(featureCacheService.getDistinctMerchantCount1Hour(request.userId())).thenReturn(DISTINCT_MERCHANT_COUNT_STUB);
     }
 }

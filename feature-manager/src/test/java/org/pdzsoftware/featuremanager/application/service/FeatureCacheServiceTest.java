@@ -15,7 +15,6 @@ import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.ZSetOperations;
 
 import java.math.BigDecimal;
-import java.time.Duration;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -29,11 +28,38 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.pdzsoftware.featuremanager.support.TestConstants.CACHE_MEMBER_TXN_1_AMOUNT;
+import static org.pdzsoftware.featuremanager.support.TestConstants.CACHE_MEMBER_TXN_1_MERCHANT;
+import static org.pdzsoftware.featuremanager.support.TestConstants.CACHE_MEMBER_TXN_2_AMOUNT;
+import static org.pdzsoftware.featuremanager.support.TestConstants.CACHE_MEMBER_TXN_2_MERCHANT;
+import static org.pdzsoftware.featuremanager.support.TestConstants.CACHE_MEMBER_TXN_3_MERCHANT;
+import static org.pdzsoftware.featuremanager.support.TestConstants.DISTINCT_MERCHANT_COUNT;
+import static org.pdzsoftware.featuremanager.support.TestConstants.ERROR_MESSAGE_BAD_MEMBER;
+import static org.pdzsoftware.featuremanager.support.TestConstants.ERROR_MESSAGE_INVALID_RANGE;
+import static org.pdzsoftware.featuremanager.support.TestConstants.FIXED_EPOCH_SECONDS;
+import static org.pdzsoftware.featuremanager.support.TestConstants.MERCHANT_ID;
+import static org.pdzsoftware.featuremanager.support.TestConstants.REDIS_CLEANUP_KEY_COUNT;
+import static org.pdzsoftware.featuremanager.support.TestConstants.REDIS_SCORE_MIN;
+import static org.pdzsoftware.featuremanager.support.TestConstants.REDIS_TIME_TO_LAST;
+import static org.pdzsoftware.featuremanager.support.TestConstants.SECONDS_AGO_FOR_DELTA_TEST;
+import static org.pdzsoftware.featuremanager.support.TestConstants.SECONDS_SINCE_LAST_DEFAULT;
+import static org.pdzsoftware.featuremanager.support.TestConstants.TRANSACTION_AMOUNT_SINGLE;
+import static org.pdzsoftware.featuremanager.support.TestConstants.TRANSACTION_AMOUNT_SMALL;
+import static org.pdzsoftware.featuremanager.support.TestConstants.TRANSACTION_COUNT_5MIN;
+import static org.pdzsoftware.featuremanager.support.TestConstants.TRANSACTION_ID_1;
+import static org.pdzsoftware.featuremanager.support.TestConstants.USER_ID;
+import static org.pdzsoftware.featuremanager.support.TestConstants.AMOUNT_VELOCITY_SUM;
+import static org.pdzsoftware.featuremanager.support.TestConstants.DELTA_TOLERANCE_LOWER;
+import static org.pdzsoftware.featuremanager.support.TestConstants.DELTA_TOLERANCE_UPPER;
+import static org.pdzsoftware.featuremanager.support.TestConstants.MILLIS_PER_SECOND;
+import static org.pdzsoftware.featuremanager.support.TestConstants.userAmountsKey;
+import static org.pdzsoftware.featuremanager.support.TestConstants.userLastTransactionKey;
+import static org.pdzsoftware.featuremanager.support.TestConstants.userMerchantsKey;
+import static org.pdzsoftware.featuremanager.support.TestConstants.userTransactionsKey;
+import static org.pdzsoftware.featuremanager.support.TestConstants.fixedEpochMillis;
 
 @ExtendWith(MockitoExtension.class)
 class FeatureCacheServiceTest {
-
-    private static final long FIXED_EPOCH_SECONDS = 1_700_000_000L;
 
     @Mock
     private RedisTemplate<String, String> redisTemplate;
@@ -54,112 +80,114 @@ class FeatureCacheServiceTest {
     void setUp() {
         lenient().when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        lenient().when(redisProperties.getTimeToLast()).thenReturn(Duration.ofMinutes(10));
+        lenient().when(redisProperties.getTimeToLast()).thenReturn(REDIS_TIME_TO_LAST);
     }
 
     @Test
     void recordUserTransaction_shouldWriteToRedisZSetsAndLastTransactionKey() {
-        long timestampMillis = FIXED_EPOCH_SECONDS * 1_000L;
+        featureCacheService.recordUserTransaction(
+                USER_ID, TRANSACTION_ID_1, TRANSACTION_AMOUNT_SMALL, MERCHANT_ID, fixedEpochMillis());
 
-        featureCacheService.recordUserTransaction("user-1", "txn-1", BigDecimal.TEN, "merchant-1", timestampMillis);
-
-        verify(zSetOperations).add(eq("user:transactions:user-1"), anyString(), eq((double) FIXED_EPOCH_SECONDS));
-        verify(zSetOperations).add(eq("user:transaction-amounts:user-1"), anyString(), eq((double) FIXED_EPOCH_SECONDS));
-        verify(zSetOperations).add(eq("user:transaction-merchants:user-1"), anyString(), eq((double) FIXED_EPOCH_SECONDS));
-        verify(valueOperations).set(eq("user:last-transaction:user-1"), eq(String.valueOf(FIXED_EPOCH_SECONDS)), eq(Duration.ofMinutes(10)));
-        verify(redisTemplate).expire("user:transactions:user-1", Duration.ofMinutes(10));
+        verify(zSetOperations).add(eq(userTransactionsKey(USER_ID)), anyString(), eq((double) FIXED_EPOCH_SECONDS));
+        verify(zSetOperations).add(eq(userAmountsKey(USER_ID)), anyString(), eq((double) FIXED_EPOCH_SECONDS));
+        verify(zSetOperations).add(eq(userMerchantsKey(USER_ID)), anyString(), eq((double) FIXED_EPOCH_SECONDS));
+        verify(valueOperations).set(
+                eq(userLastTransactionKey(USER_ID)),
+                eq(String.valueOf(FIXED_EPOCH_SECONDS)),
+                eq(REDIS_TIME_TO_LAST));
+        verify(redisTemplate).expire(userTransactionsKey(USER_ID), REDIS_TIME_TO_LAST);
     }
 
     @Test
     void recordUserTransaction_shouldWrapIllegalArgumentException() {
-        doThrow(new IllegalArgumentException("bad member"))
+        doThrow(new IllegalArgumentException(ERROR_MESSAGE_BAD_MEMBER))
                 .when(zSetOperations).add(anyString(), anyString(), anyDouble());
 
         assertThatThrownBy(() -> featureCacheService.recordUserTransaction(
-                "user-1", "txn-1", BigDecimal.ONE, "merchant-1", FIXED_EPOCH_SECONDS * 1_000L))
+                USER_ID, TRANSACTION_ID_1, TRANSACTION_AMOUNT_SINGLE, MERCHANT_ID, fixedEpochMillis()))
                 .isInstanceOf(CacheUpdateException.class)
-                .hasMessageContaining("txn-1");
+                .hasMessageContaining(TRANSACTION_ID_1);
     }
 
     @Test
     void getUserTransactionCount5Min_shouldReturnCountFromRedis() {
-        when(zSetOperations.count(anyString(), anyDouble(), anyDouble())).thenReturn(3L);
+        when(zSetOperations.count(anyString(), anyDouble(), anyDouble())).thenReturn(TRANSACTION_COUNT_5MIN);
 
-        assertThat(featureCacheService.getUserTransactionCount5Min("user-1")).isEqualTo(3L);
+        assertThat(featureCacheService.getUserTransactionCount5Min(USER_ID)).isEqualTo(TRANSACTION_COUNT_5MIN);
     }
 
     @Test
     void getUserTransactionCount5Min_shouldReturnZero_whenCountIsNull() {
         when(zSetOperations.count(anyString(), anyDouble(), anyDouble())).thenReturn(null);
 
-        assertThat(featureCacheService.getUserTransactionCount5Min("user-1")).isZero();
+        assertThat(featureCacheService.getUserTransactionCount5Min(USER_ID)).isZero();
     }
 
     @Test
     void getSecondsSinceLastTransaction_shouldReturnDefault_whenNoLastTransaction() {
-        when(valueOperations.get("user:last-transaction:user-1")).thenReturn(null);
+        when(valueOperations.get(userLastTransactionKey(USER_ID))).thenReturn(null);
 
-        assertThat(featureCacheService.getSecondsSinceLastTransaction("user-1"))
-                .isEqualTo(30L * 24L * 3600L);
+        assertThat(featureCacheService.getSecondsSinceLastTransaction(USER_ID))
+                .isEqualTo(SECONDS_SINCE_LAST_DEFAULT);
     }
 
     @Test
     void getSecondsSinceLastTransaction_shouldComputeDelta_whenLastTransactionExists() {
-        long nowSeconds = System.currentTimeMillis() / 1_000L;
-        long lastSeconds = nowSeconds - 120L;
-        when(valueOperations.get("user:last-transaction:user-1")).thenReturn(String.valueOf(lastSeconds));
+        long nowSeconds = System.currentTimeMillis() / MILLIS_PER_SECOND;
+        long lastSeconds = nowSeconds - SECONDS_AGO_FOR_DELTA_TEST;
+        when(valueOperations.get(userLastTransactionKey(USER_ID))).thenReturn(String.valueOf(lastSeconds));
 
-        long result = featureCacheService.getSecondsSinceLastTransaction("user-1");
+        long result = featureCacheService.getSecondsSinceLastTransaction(USER_ID);
 
-        assertThat(result).isBetween(115L, 125L);
+        assertThat(result).isBetween(DELTA_TOLERANCE_LOWER, DELTA_TOLERANCE_UPPER);
     }
 
     @Test
     void getAmountVelocity1Hour_shouldSumAmountsFromMembers() {
         Set<String> members = new LinkedHashSet<>();
-        members.add("txn-1:10.50");
-        members.add("txn-2:20");
+        members.add(CACHE_MEMBER_TXN_1_AMOUNT);
+        members.add(CACHE_MEMBER_TXN_2_AMOUNT);
         when(zSetOperations.rangeByScore(anyString(), anyDouble(), anyDouble())).thenReturn(members);
 
-        assertThat(featureCacheService.getAmountVelocity1Hour("user-1")).isEqualByComparingTo("30.50");
+        assertThat(featureCacheService.getAmountVelocity1Hour(USER_ID)).isEqualByComparingTo(AMOUNT_VELOCITY_SUM);
     }
 
     @Test
     void getAmountVelocity1Hour_shouldReturnZero_whenNoMembers() {
         when(zSetOperations.rangeByScore(anyString(), anyDouble(), anyDouble())).thenReturn(Set.of());
 
-        assertThat(featureCacheService.getAmountVelocity1Hour("user-1")).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(featureCacheService.getAmountVelocity1Hour(USER_ID)).isEqualByComparingTo(BigDecimal.ZERO);
     }
 
     @Test
     void getDistinctMerchantCount1Hour_shouldCountUniqueMerchants() {
         Set<String> members = new LinkedHashSet<>();
-        members.add("txn-1:merchant-a");
-        members.add("txn-2:merchant-a");
-        members.add("txn-3:merchant-b");
+        members.add(CACHE_MEMBER_TXN_1_MERCHANT);
+        members.add(CACHE_MEMBER_TXN_2_MERCHANT);
+        members.add(CACHE_MEMBER_TXN_3_MERCHANT);
         when(zSetOperations.rangeByScore(anyString(), anyDouble(), anyDouble())).thenReturn(members);
 
-        assertThat(featureCacheService.getDistinctMerchantCount1Hour("user-1")).isEqualTo(2L);
+        assertThat(featureCacheService.getDistinctMerchantCount1Hour(USER_ID)).isEqualTo(DISTINCT_MERCHANT_COUNT);
     }
 
     @Test
     void getTransactionCountInWindow_shouldThrowCacheReadException_onIllegalArgument() {
         when(zSetOperations.count(anyString(), anyDouble(), anyDouble()))
-                .thenThrow(new IllegalArgumentException("invalid range"));
+                .thenThrow(new IllegalArgumentException(ERROR_MESSAGE_INVALID_RANGE));
 
-        assertThatThrownBy(() -> featureCacheService.getUserTransactionCount1Hour("user-1"))
+        assertThatThrownBy(() -> featureCacheService.getUserTransactionCount1Hour(USER_ID))
                 .isInstanceOf(CacheReadException.class)
-                .hasMessageContaining("user-1");
+                .hasMessageContaining(USER_ID);
     }
 
     @Test
     void cleanupOldTransactions_shouldRemoveScoresOlderThanOneHour() {
-        featureCacheService.cleanupOldTransactions("user-1");
+        featureCacheService.cleanupOldTransactions(USER_ID);
 
         ArgumentCaptor<Double> maxScoreCaptor = ArgumentCaptor.forClass(Double.class);
-        verify(zSetOperations).removeRangeByScore(eq("user:transactions:user-1"), eq(0.0), maxScoreCaptor.capture());
-        verify(zSetOperations).removeRangeByScore(eq("user:transaction-amounts:user-1"), eq(0.0), maxScoreCaptor.capture());
-        verify(zSetOperations).removeRangeByScore(eq("user:transaction-merchants:user-1"), eq(0.0), maxScoreCaptor.capture());
-        assertThat(maxScoreCaptor.getAllValues()).hasSize(3);
+        verify(zSetOperations).removeRangeByScore(eq(userTransactionsKey(USER_ID)), eq(REDIS_SCORE_MIN), maxScoreCaptor.capture());
+        verify(zSetOperations).removeRangeByScore(eq(userAmountsKey(USER_ID)), eq(REDIS_SCORE_MIN), maxScoreCaptor.capture());
+        verify(zSetOperations).removeRangeByScore(eq(userMerchantsKey(USER_ID)), eq(REDIS_SCORE_MIN), maxScoreCaptor.capture());
+        assertThat(maxScoreCaptor.getAllValues()).hasSize(REDIS_CLEANUP_KEY_COUNT);
     }
 }

@@ -18,6 +18,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.pdzsoftware.featuremanager.support.TestConstants.MISSING_ID;
+import static org.pdzsoftware.featuremanager.support.TestConstants.USER_ID;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
@@ -30,29 +32,29 @@ class UserServiceTest {
 
     @Test
     void getByIdOrThrow_shouldReturnUser_whenFound() {
-        UserEntity user = TestFixtures.user("user-1", CountryCode.US, LocalDateTime.now());
-        when(userRepository.findById("user-1")).thenReturn(Optional.of(user));
+        UserEntity user = TestFixtures.user(USER_ID, CountryCode.US, LocalDateTime.now());
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
 
-        UserEntity result = userService.getByIdOrThrow("user-1");
+        UserEntity result = userService.getByIdOrThrow(USER_ID);
 
         assertThat(result).isSameAs(user);
-        verify(userRepository).findById("user-1");
+        verify(userRepository).findById(USER_ID);
     }
 
     @Test
     void getByIdOrThrow_shouldThrow_whenNotFound() {
-        when(userRepository.findById("missing")).thenReturn(Optional.empty());
+        when(userRepository.findById(MISSING_ID)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> userService.getByIdOrThrow("missing"))
+        assertThatThrownBy(() -> userService.getByIdOrThrow(MISSING_ID))
                 .isInstanceOf(UserNotFoundException.class)
-                .hasMessageContaining("missing");
+                .hasMessageContaining(MISSING_ID);
     }
 
     @Test
     void existsById_shouldDelegateToRepository() {
-        when(userRepository.existsById("user-1")).thenReturn(true);
+        when(userRepository.existsById(USER_ID)).thenReturn(true);
 
-        assertThat(userService.existsById("user-1")).isTrue();
-        verify(userRepository).existsById("user-1");
+        assertThat(userService.existsById(USER_ID)).isTrue();
+        verify(userRepository).existsById(USER_ID);
     }
 }

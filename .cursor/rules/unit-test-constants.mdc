@@ -1,0 +1,12 @@
+---
+description: Prefer named constants over magic literals in unit tests
+globs: "**/*Test.java,**/test_*.py,**/tests/**/*.py"
+alwaysApply: false
+---
+
+# Unit test literals
+
+- Extract repeated strings, numeric thresholds, and IDs into `TestConstants` (Java) or a module-level `conftest` / constants module (Python).
+- Keep test-specific literals only when they are unique to a single assertion and self-explanatory.
+- Reuse production-aligned values (e.g. cold-start average, Redis key prefixes) via constants so tests track domain defaults.
+- Prefer `static final` fields and small key-builder methods over inline concatenation in assertions.

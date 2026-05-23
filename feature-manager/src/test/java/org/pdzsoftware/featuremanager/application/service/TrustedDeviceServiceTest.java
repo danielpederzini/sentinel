@@ -8,9 +8,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.pdzsoftware.featuremanager.infrastructure.outbound.persistence.repository.TrustedDeviceRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.pdzsoftware.featuremanager.support.TestConstants.BLANK_DEVICE_ID;
+import static org.pdzsoftware.featuremanager.support.TestConstants.DEVICE_ID;
 
 @ExtendWith(MockitoExtension.class)
 class TrustedDeviceServiceTest {
@@ -24,17 +27,17 @@ class TrustedDeviceServiceTest {
     @Test
     void existsById_shouldReturnFalse_whenIdBlank() {
         assertThat(trustedDeviceService.existsById("")).isFalse();
-        assertThat(trustedDeviceService.existsById("   ")).isFalse();
+        assertThat(trustedDeviceService.existsById(BLANK_DEVICE_ID)).isFalse();
         assertThat(trustedDeviceService.existsById(null)).isFalse();
 
-        verify(trustedDeviceRepository, never()).existsById(org.mockito.ArgumentMatchers.any());
+        verify(trustedDeviceRepository, never()).existsById(any());
     }
 
     @Test
     void existsById_shouldDelegateToRepository_whenIdPresent() {
-        when(trustedDeviceRepository.existsById("device-1")).thenReturn(true);
+        when(trustedDeviceRepository.existsById(DEVICE_ID)).thenReturn(true);
 
-        assertThat(trustedDeviceService.existsById("device-1")).isTrue();
-        verify(trustedDeviceRepository).existsById("device-1");
+        assertThat(trustedDeviceService.existsById(DEVICE_ID)).isTrue();
+        verify(trustedDeviceRepository).existsById(DEVICE_ID);
     }
 }

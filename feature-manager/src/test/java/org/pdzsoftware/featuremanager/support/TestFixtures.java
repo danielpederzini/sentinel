@@ -13,8 +13,45 @@ import org.pdzsoftware.featuremanager.infrastructure.outbound.persistence.entity
 import org.pdzsoftware.featuremanager.infrastructure.outbound.persistence.entity.UserEntity;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
+
+import static org.pdzsoftware.featuremanager.support.TestConstants.CARD_ID;
+import static org.pdzsoftware.featuremanager.support.TestConstants.DEVICE_ID;
+import static org.pdzsoftware.featuremanager.support.TestConstants.FEATURE_AMOUNT_DEVIATION;
+import static org.pdzsoftware.featuremanager.support.TestConstants.FEATURE_AMOUNT_TIMES_MERCHANT_RISK;
+import static org.pdzsoftware.featuremanager.support.TestConstants.FEATURE_AMOUNT_TO_AVERAGE_RATIO;
+import static org.pdzsoftware.featuremanager.support.TestConstants.FEATURE_CARD_AGE_DAYS;
+import static org.pdzsoftware.featuremanager.support.TestConstants.FEATURE_CARD_TYPE;
+import static org.pdzsoftware.featuremanager.support.TestConstants.FEATURE_DAY_OF_WEEK;
+import static org.pdzsoftware.featuremanager.support.TestConstants.FEATURE_DISTINCT_MERCHANT_COUNT;
+import static org.pdzsoftware.featuremanager.support.TestConstants.FEATURE_HISTORICAL_COUNT;
+import static org.pdzsoftware.featuremanager.support.TestConstants.FEATURE_HOUR_OF_DAY;
+import static org.pdzsoftware.featuremanager.support.TestConstants.FEATURE_LOG_AMOUNT;
+import static org.pdzsoftware.featuremanager.support.TestConstants.FEATURE_LOG_SECONDS;
+import static org.pdzsoftware.featuremanager.support.TestConstants.FEATURE_LOG_VELOCITY;
+import static org.pdzsoftware.featuremanager.support.TestConstants.FEATURE_MERCHANT_CATEGORY;
+import static org.pdzsoftware.featuremanager.support.TestConstants.FEATURE_RECENCY_VELOCITY;
+import static org.pdzsoftware.featuremanager.support.TestConstants.FEATURE_RISK_SCORE_PRODUCT;
+import static org.pdzsoftware.featuremanager.support.TestConstants.FEATURE_SECONDS_SINCE_LAST;
+import static org.pdzsoftware.featuremanager.support.TestConstants.FEATURE_TXN_COUNT_1HOUR;
+import static org.pdzsoftware.featuremanager.support.TestConstants.FEATURE_TXN_COUNT_5MIN;
+import static org.pdzsoftware.featuremanager.support.TestConstants.FEATURE_USER_ACCOUNT_AGE_DAYS;
+import static org.pdzsoftware.featuremanager.support.TestConstants.FEATURE_VELOCITY_AMOUNT_INTERACTION;
+import static org.pdzsoftware.featuremanager.support.TestConstants.FEATURE_VELOCITY_INTENSITY;
+import static org.pdzsoftware.featuremanager.support.TestConstants.FRAUD_PROBABILITY;
+import static org.pdzsoftware.featuremanager.support.TestConstants.IP_ADDRESS;
+import static org.pdzsoftware.featuremanager.support.TestConstants.IP_RISK_SCORE_LOW;
+import static org.pdzsoftware.featuremanager.support.TestConstants.MERCHANT_EMAIL;
+import static org.pdzsoftware.featuremanager.support.TestConstants.MERCHANT_ID;
+import static org.pdzsoftware.featuremanager.support.TestConstants.MERCHANT_RISK_SCORE_LOW;
+import static org.pdzsoftware.featuremanager.support.TestConstants.MODEL_VERSION;
+import static org.pdzsoftware.featuremanager.support.TestConstants.PERSIST_CREATED_HOURS_AGO;
+import static org.pdzsoftware.featuremanager.support.TestConstants.PERSIST_TRANSACTION_AMOUNT;
+import static org.pdzsoftware.featuremanager.support.TestConstants.COLD_START_AVERAGE_AMOUNT;
+import static org.pdzsoftware.featuremanager.support.TestConstants.COUNTRY_IP_RISK_MIN;
+import static org.pdzsoftware.featuremanager.support.TestConstants.MERCHANT_AGE_YEARS;
+import static org.pdzsoftware.featuremanager.support.TestConstants.USER_BIRTH_DATE;
+import static org.pdzsoftware.featuremanager.support.TestConstants.USER_EMAIL;
 
 public final class TestFixtures {
 
@@ -31,12 +68,12 @@ public final class TestFixtures {
         return new FraudFeatureRequest(
                 transactionId,
                 userId,
-                "card-1",
-                "merchant-1",
-                "device-1",
+                CARD_ID,
+                MERCHANT_ID,
+                DEVICE_ID,
                 amount,
                 countryCode,
-                "203.0.113.1",
+                IP_ADDRESS,
                 creationDateTime
         );
     }
@@ -44,8 +81,8 @@ public final class TestFixtures {
     public static UserEntity user(String id, CountryCode homeCountry, LocalDateTime created) {
         return UserEntity.builder()
                 .id(id)
-                .email("user@example.com")
-                .birthDate(LocalDate.of(1990, 1, 1))
+                .email(USER_EMAIL)
+                .birthDate(USER_BIRTH_DATE)
                 .homeCountryCode(homeCountry)
                 .creationDateTime(created)
                 .build();
@@ -62,57 +99,57 @@ public final class TestFixtures {
     public static MerchantEntity merchant(String id, MerchantCategory category, float riskScore) {
         return MerchantEntity.builder()
                 .id(id)
-                .email("merchant@example.com")
+                .email(MERCHANT_EMAIL)
                 .category(category)
                 .riskScore(riskScore)
-                .creationDateTime(LocalDateTime.now().minusYears(1))
+                .creationDateTime(LocalDateTime.now().minusYears(MERCHANT_AGE_YEARS))
                 .build();
     }
 
     public static PersistTransactionRequest persistTransactionRequest(String transactionId) {
         return new PersistTransactionRequest(
                 transactionId,
-                "user-1",
-                "card-1",
-                "merchant-1",
-                "device-1",
-                BigDecimal.valueOf(50),
+                TestConstants.USER_ID,
+                CARD_ID,
+                MERCHANT_ID,
+                DEVICE_ID,
+                PERSIST_TRANSACTION_AMOUNT,
                 CountryCode.US,
-                "203.0.113.1",
-                LocalDateTime.now().minusHours(1),
+                IP_ADDRESS,
+                LocalDateTime.now().minusHours(PERSIST_CREATED_HOURS_AGO),
                 new FeaturesRequest(
-                        BigDecimal.valueOf(100),
-                        5L,
-                        1L,
-                        2L,
-                        3600L,
-                        0.2f,
+                        COLD_START_AVERAGE_AMOUNT,
+                        FEATURE_HISTORICAL_COUNT,
+                        FEATURE_TXN_COUNT_5MIN,
+                        FEATURE_TXN_COUNT_1HOUR,
+                        FEATURE_SECONDS_SINCE_LAST,
+                        MERCHANT_RISK_SCORE_LOW,
                         true,
                         false,
-                        0.5f,
-                        14,
-                        0.1f,
-                        30L,
+                        FEATURE_AMOUNT_TO_AVERAGE_RATIO,
+                        FEATURE_HOUR_OF_DAY,
+                        IP_RISK_SCORE_LOW,
+                        FEATURE_CARD_AGE_DAYS,
                         BigDecimal.TEN,
-                        365L,
-                        3,
-                        1,
-                        0,
-                        1L,
-                        3.9,
-                        8.0,
-                        2.3,
-                        10.0,
-                        0.02,
-                        0.0,
-                        0.0,
-                        1.0,
-                        0.5,
-                        0.1,
+                        FEATURE_USER_ACCOUNT_AGE_DAYS,
+                        FEATURE_DAY_OF_WEEK,
+                        FEATURE_MERCHANT_CATEGORY,
+                        FEATURE_CARD_TYPE,
+                        FEATURE_DISTINCT_MERCHANT_COUNT,
+                        FEATURE_LOG_AMOUNT,
+                        FEATURE_LOG_SECONDS,
+                        FEATURE_LOG_VELOCITY,
+                        FEATURE_AMOUNT_TIMES_MERCHANT_RISK,
+                        FEATURE_RISK_SCORE_PRODUCT,
+                        COUNTRY_IP_RISK_MIN,
+                        COUNTRY_IP_RISK_MIN,
+                        FEATURE_VELOCITY_AMOUNT_INTERACTION,
+                        FEATURE_RECENCY_VELOCITY,
+                        FEATURE_AMOUNT_DEVIATION,
                         false,
-                        5.0
+                        FEATURE_VELOCITY_INTENSITY
                 ),
-                new PredictionRequest(0.15, RiskLevel.LOW, "v1")
+                new PredictionRequest(FRAUD_PROBABILITY, RiskLevel.LOW, MODEL_VERSION)
         );
     }
 }
