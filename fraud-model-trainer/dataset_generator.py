@@ -99,7 +99,7 @@ class SegmentConfig:
 class QualityConfig:
     missing_rate: float = 0.01
     outlier_rate: float = 0.002
-    noise_scale: float = 0.015
+    noise_scale: float = 0.01
 
 
 @dataclass(frozen=True)
@@ -112,7 +112,7 @@ class ValidationConfig:
 @dataclass(frozen=True)
 class GeneratorConfig:
     fraud_rate: float = 0.05
-    stealth_rate: float = 0.18
+    stealth_rate: float = 0.12
     cold_start_rate: float = 0.08
     burst_budget_rate: float = 0.04
     quality: QualityConfig = QualityConfig()
@@ -383,7 +383,7 @@ def _amount_for_scenario(rng: np.random.Generator, baseline: float, profile: Use
     if scenario == Scenario.SYNTHETIC_IDENTITY:
         return _clip_amount(_sample_lognormal(rng, max(800, baseline * float(rng.uniform(3.0, 10.0))), 0.70))
     if scenario == Scenario.STEALTH_FRAUD:
-        return _clip_amount(_sample_lognormal(rng, baseline * float(rng.uniform(0.85, 2.2)), 0.35))
+        return _clip_amount(_sample_lognormal(rng, baseline * float(rng.uniform(0.75, 2.6)), 0.40))
     return _clip_amount(_sample_lognormal(rng, baseline, 0.42))
 
 
@@ -419,14 +419,14 @@ def _materialize_row(
         amount = _clip_amount(amount * float(rng.uniform(1.05, 1.25)))
 
     if scenario == Scenario.ACCOUNT_TAKEOVER:
-        is_device_trusted = bool(rng.random() < 0.28)
-        has_country_mismatch = bool(rng.random() < 0.58)
+        is_device_trusted = bool(rng.random() < 0.20)
+        has_country_mismatch = bool(rng.random() < 0.66)
     elif scenario in {Scenario.FIRST_TRANSACTION_LARGE_PURCHASE, Scenario.SYNTHETIC_IDENTITY}:
         is_device_trusted = bool(rng.random() < 0.22)
         has_country_mismatch = bool(rng.random() < 0.42)
     elif scenario == Scenario.STEALTH_FRAUD:
-        is_device_trusted = bool(rng.random() < 0.72)
-        has_country_mismatch = bool(rng.random() < 0.18)
+        is_device_trusted = bool(rng.random() < 0.58)
+        has_country_mismatch = bool(rng.random() < 0.26)
     else:
         is_device_trusted = bool(rng.random() < profile.trusted_device_rate)
         has_country_mismatch = bool(rng.random() < profile.travel_rate)
@@ -526,7 +526,7 @@ def _inject_data_quality_issues(df: pd.DataFrame, rng: np.random.Generator, cfg:
 def simulate(
     row_count: int,
     fraud_rate: float = 0.05,
-    stealth_rate: float = 0.18,
+    stealth_rate: float = 0.12,
     seed: int | None = None,
     inject_quality_issues: bool = True,
 ) -> pd.DataFrame:
@@ -729,7 +729,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Generate a synthetic fraud detection dataset.")
     parser.add_argument("num_rows", type=int, help="Number of rows to generate")
     parser.add_argument("--fraud-rate", type=float, default=0.05)
-    parser.add_argument("--stealth-rate", type=float, default=0.18)
+    parser.add_argument("--stealth-rate", type=float, default=0.12)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--output", type=str, default="data/transactions.csv")
     parser.add_argument("--no-quality-issues", action="store_true", help="Disable data quality issue injection")
