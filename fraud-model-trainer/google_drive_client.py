@@ -29,7 +29,7 @@ def _build_drive_service():
 
 def upload_model(local_path: str) -> str:
     """Upload a .joblib model bundle to Google Drive and return the file ID."""
-    folder_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "")
+    folder_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "").strip()
     if not folder_id:
         raise RuntimeError("GOOGLE_DRIVE_FOLDER_ID is not set.")
 
@@ -41,7 +41,7 @@ def upload_model(local_path: str) -> str:
 
     uploaded_file = (
         service.files()
-        .create(body=file_metadata, media_body=media, fields="id,name")
+        .create(body=file_metadata, media_body=media, fields="id,name", supportsAllDrives=True)
         .execute()
     )
 

@@ -7,7 +7,7 @@ from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 
-SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
+SCOPES = ["https://www.googleapis.com/auth/drive"]
 
 
 def _build_drive_service():
@@ -33,8 +33,8 @@ def download_latest_model(destination_directory: str) -> str | None:
     Returns the local path of the downloaded file, or ``None`` when Google
     Drive is not configured.
     """
-    folder_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "")
-    credentials_json = os.environ.get("GOOGLE_DRIVE_CREDENTIALS_JSON", "")
+    folder_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "").strip()
+    credentials_json = os.environ.get("GOOGLE_DRIVE_CREDENTIALS_JSON", "").strip()
     if not folder_id or not credentials_json:
         return None
 
@@ -48,7 +48,7 @@ def download_latest_model(destination_directory: str) -> str | None:
     )
     results = (
         service.files()
-        .list(q=query, orderBy="createdTime desc", pageSize=1, fields="files(id,name)")
+        .list(q=query, orderBy="createdTime desc", pageSize=1, fields="files(id,name)", supportsAllDrives=True, includeItemsFromAllDrives=True)
         .execute()
     )
     files = results.get("files", [])
@@ -60,7 +60,7 @@ def download_latest_model(destination_directory: str) -> str | None:
     os.makedirs(destination_directory, exist_ok=True)
     local_path = os.path.join(destination_directory, latest["name"])
 
-    request = service.files().get_media(fileId=latest["id"])
+    request = service.files().get_media(fileId=latest["id"], supportsAllDrives=True)
     with open(local_path, "wb") as fh:
         downloader = MediaIoBaseDownload(fh, request)
         done = False
