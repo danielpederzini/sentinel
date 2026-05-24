@@ -543,6 +543,10 @@ def train_model(
     joblib.dump(bundle, bundle_path)
     print(f"\nBundle saved to {bundle_path}")
 
+    if os.environ.get("GOOGLE_DRIVE_CREDENTIALS_JSON") and os.environ.get("GOOGLE_DRIVE_FOLDER_ID"):
+        from google_drive_client import upload_model
+        upload_model(bundle_path)
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train a fraud detection model.")
