@@ -36,7 +36,9 @@ _state: dict = {}
 _error_logger = ErrorLogger()
 
 
-def _load_latest_model(model_directory: str) -> tuple[lgb.LGBMClassifier, IsotonicRegression, dict, str, list[str]]:
+def _load_latest_model(
+    model_directory: str,
+) -> tuple[lgb.LGBMClassifier, IsotonicRegression, dict, str, list[str], dict[str, float]]:
     try:
         candidates = glob.glob(os.path.join(model_directory, "lgbm_*.joblib"))
         if not candidates:
@@ -45,7 +47,8 @@ def _load_latest_model(model_directory: str) -> tuple[lgb.LGBMClassifier, Isoton
         latest_bundle_path = max(candidates, key=os.path.getmtime)
         bundle: dict = joblib.load(latest_bundle_path)
         feature_names: list[str] = bundle["feature_names"]
-        return bundle["model"], bundle["calibrator"], bundle["metrics"], bundle["version"], feature_names
+        feature_caps: dict[str, float] = bundle.get("feature_caps", {})
+        return bundle["model"], bundle["calibrator"], bundle["metrics"], bundle["version"], feature_names, feature_caps
     except ModelLoadException:
         raise
     except Exception as exception:
@@ -61,8 +64,12 @@ def _find_risk_level(probability: float, threshold: float) -> RiskLevel:
     return RiskLevel.LOW
 
 
-def _build_feature_values(request: FraudPredictionRequest) -> dict[str, float | int | bool]:
-    return {
+def _build_feature_values(
+    request: FraudPredictionRequest,
+    feature_caps: dict[str, float] | None = None,
+) -> dict[str, float | int | bool]:
+    caps = feature_caps or {}
+    values = {
         "amount": request.amount,
         "user_average_amount": request.user_average_amount,
         "user_historical_transaction_count": request.user_historical_transaction_count,
@@ -95,6 +102,10 @@ def _build_feature_values(request: FraudPredictionRequest) -> dict[str, float | 
         "is_night": request.is_night,
         "velocity_intensity": request.velocity_intensity,
     }
+    for feature_name, cap_value in caps.items():
+        if feature_name in values and isinstance(values[feature_name], (int, float)):
+            values[feature_name] = min(values[feature_name], cap_value)
+    return values
 
 
 def _validate_model_feature_contract(feature_names: list[str]) -> None:
@@ -168,15 +179,17 @@ def _build_explainability(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
-        model, calibrator, metrics, version, feature_names = _load_latest_model(MODELS_DIRECTORY)
+        model, calibrator, metrics, version, feature_names, feature_caps = _load_latest_model(MODELS_DIRECTORY)
         _state["model"] = model
         _state["calibrator"] = calibrator
         _state["threshold"] = metrics["threshold"]
         _state["version"] = version
         _state["feature_names"] = feature_names
+        _state["feature_caps"] = feature_caps
         _validate_model_feature_contract(feature_names)
         _state["explainer"] = shap.TreeExplainer(model)
-        print(f"Loaded LightGBM model version {version} with threshold {_state['threshold']:.4f}")
+        caps_info = ", ".join(f"{k}={v:.2f}" for k, v in feature_caps.items()) if feature_caps else "none"
+        print(f"Loaded LightGBM model version {version} with threshold {_state['threshold']:.4f}, caps: {caps_info}")
     except ModelLoadException as exception:
         _error_logger.error("Model loading failed during startup", exception)
         raise
@@ -258,7 +271,8 @@ def score(request: FraudPredictionRequest) -> FraudPredictionResponse:
             raise PredictionException("Model is not loaded, service is unavailable")
 
         feature_names: list[str] = _state["feature_names"]
-        feature_values = _build_feature_values(request)
+        feature_caps: dict[str, float] = _state.get("feature_caps", {})
+        feature_values = _build_feature_values(request, feature_caps)
         missing_features = [feature for feature in feature_names if feature not in feature_values]
         if missing_features:
             raise PredictionException(

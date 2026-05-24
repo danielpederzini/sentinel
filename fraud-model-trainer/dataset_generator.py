@@ -133,6 +133,18 @@ class IpRecord:
 
 
 @dataclass
+class IpHistory:
+    contribution_sum: float = 0.0
+    transaction_count: int = 0
+
+    @property
+    def dynamic_risk(self) -> float:
+        if self.transaction_count == 0:
+            return 0.0
+        return self.contribution_sum / self.transaction_count
+
+
+@dataclass
 class UserProfile:
     user_id: str
     segment: UserSegment
@@ -423,6 +435,7 @@ def _materialize_row(
     ips: list[IpRecord],
     merchants: list[MerchantRecord],
     simulation_start: datetime,
+    ip_history: dict[int, IpHistory] | None = None,
 ) -> dict[str, Any]:
     profile = state.profile
     is_fraud = _scenario_is_fraud(scenario)
@@ -441,7 +454,11 @@ def _materialize_row(
 
     ip_idx = _pick_ip(rng, profile, scenario, ips)
     merchant_idx = _pick_merchant(rng, profile, scenario, merchants)
-    ip_risk = float(round(np.clip(ips[ip_idx].risk_score + rng.normal(0, 0.035), 0, 1), 4))
+    if ip_history is not None:
+        hist = ip_history.get(ip_idx)
+        ip_risk = float(round(np.clip(hist.dynamic_risk + rng.normal(0, 0.02), 0, 1), 4)) if hist else 0.0
+    else:
+        ip_risk = float(round(np.clip(ips[ip_idx].risk_score + rng.normal(0, 0.035), 0, 1), 4))
     merchant_risk = float(round(np.clip(merchants[merchant_idx].risk_score + rng.normal(0, 0.025), 0, 1), 4))
 
     amount = _amount_for_scenario(rng, behavior_baseline, profile, scenario, no_history)
@@ -477,8 +494,8 @@ def _materialize_row(
     )
     transaction_count_5m = len(state.recent_timestamps_5m)
     transaction_count_1h = len(state.recent_timestamps_1h)
-    amount_velocity_1hour = round(float(sum(state.recent_amounts_1h)) + amount, 2)
-    distinct_merchants = len(set(state.recent_merchants_1h) | {merchant_idx})
+    amount_velocity_1hour = round(float(sum(state.recent_amounts_1h)), 2)
+    distinct_merchants = len(set(state.recent_merchants_1h))
     amount_to_average_ratio = amount / max(1.0, feature_average)
     card_age_days = max(1, int((event_ts - profile.card_created_at).days))
     account_age_days = max(1, int((event_ts - profile.account_created_at).days))
@@ -516,6 +533,16 @@ def _materialize_row(
     state.recent_timestamps_1h.append(event_ts)
     state.recent_amounts_1h.append(amount)
     state.recent_merchants_1h.append(merchant_idx)
+
+    if ip_history is not None:
+        hist = ip_history.setdefault(ip_idx, IpHistory())
+        if is_fraud:
+            contribution = 1.0 if float(rng.random()) < 0.70 else 0.5
+        else:
+            contribution = 0.5 if float(rng.random()) < 0.05 else 0.0
+        hist.contribution_sum += contribution
+        hist.transaction_count += 1
+
     return row
 
 
@@ -584,6 +611,7 @@ def simulate(
         if float(rng.random()) > cfg.cold_start_rate:
             _seed_history(state, rng, simulation_start)
 
+    ip_history: dict[int, IpHistory] = {}
     activity = np.array([p.activity_weight for p in profiles], dtype=float)
     activity /= activity.sum()
     rows: list[dict[str, Any]] = []
@@ -612,7 +640,7 @@ def simulate(
                     else Scenario.LEGITIMATE_ROUTINE
                 )
 
-        row = _materialize_row(state, rng, scenario, ips, merchants, simulation_start)
+        row = _materialize_row(state, rng, scenario, ips, merchants, simulation_start, ip_history)
         rows.append(row)
         if row["is_fraud"]:
             fraud_rows += 1

@@ -68,11 +68,19 @@ def encode_categoricals(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
+def engineer_features(
+    df: pd.DataFrame,
+    feature_caps: dict[str, float] | None = None,
+) -> tuple[pd.DataFrame, dict[str, float]]:
     """Derive interaction and transformed features from base columns.
 
     All derived features use only the base feature columns so they can be
     replicated at inference time without access to historical user data.
+
+    When ``feature_caps`` is *None* (training), the 99th-percentile caps are
+    computed from the data and returned.  When provided (inference /
+    re-application), the supplied caps are used instead so that production
+    values are clipped to the same range the model was trained on.
     """
     out = df.copy()
 
@@ -83,7 +91,10 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
 
     # Interaction: amount × risk scores (capped at 99th percentile to limit outlier influence)
     raw_amount_x_merchant_risk = out["amount"] * out["merchant_risk_score"]
-    out["amount_x_merchant_risk"] = raw_amount_x_merchant_risk.clip(upper=raw_amount_x_merchant_risk.quantile(0.99))
+    caps: dict[str, float] = feature_caps or {}
+    if "amount_x_merchant_risk" not in caps:
+        caps["amount_x_merchant_risk"] = float(raw_amount_x_merchant_risk.quantile(0.99))
+    out["amount_x_merchant_risk"] = raw_amount_x_merchant_risk.clip(upper=caps["amount_x_merchant_risk"])
     out["risk_score_product"] = out["merchant_risk_score"] * out["ip_risk_score"]
 
     # Interaction: device/country with risk
@@ -93,7 +104,9 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
 
     # Velocity × amount interactions (capped to limit outlier influence)
     raw_velocity_amount = out["user_transaction_count_1hour"] * out["amount_to_average_ratio"]
-    out["velocity_amount_interaction"] = raw_velocity_amount.clip(upper=raw_velocity_amount.quantile(0.99))
+    if "velocity_amount_interaction" not in caps:
+        caps["velocity_amount_interaction"] = float(raw_velocity_amount.quantile(0.99))
+    out["velocity_amount_interaction"] = raw_velocity_amount.clip(upper=caps["velocity_amount_interaction"])
     out["recency_velocity"] = (
         out["user_transaction_count_5min"] / np.clip(out["seconds_since_last_transaction"], 1, None)
     )
@@ -111,7 +124,7 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
         out["user_transaction_count_1hour"], 1, None
     )
 
-    return out
+    return out, caps
 
 
 def _print_pretraining_reports(data: pd.DataFrame) -> None:
@@ -294,7 +307,8 @@ def _score_behavioral_probes(
 ) -> dict[str, float]:
     probes = _probe_rows()
     names = probes.pop("probe_name")
-    X = engineer_features(encode_categoricals(probes))[feature_names]
+    X, _ = engineer_features(encode_categoricals(probes))
+    X = X[feature_names]
     raw = model.predict_proba(X)[:, 1]
     probabilities = calibrator.predict(raw) if calibrator is not None else raw
     return {name: float(prob) for name, prob in zip(names, probabilities)}
@@ -406,7 +420,7 @@ def train_model(
 
     # Encode categoricals and engineer features
     data = encode_categoricals(data)
-    data = engineer_features(data)
+    data, feature_caps = engineer_features(data)
 
     X = data.drop(columns=["is_fraud"])
     y = data["is_fraud"].astype(int)
@@ -537,6 +551,7 @@ def train_model(
         "version": model_version,
         "model_type": "lightgbm",
         "feature_names": feature_names,
+        "feature_caps": feature_caps,
         "best_params": best_params,
     }
     bundle_path = os.path.join(model_output_directory, f"lgbm_{model_version}.joblib")
