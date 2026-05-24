@@ -39,6 +39,9 @@ public class TransactionPredictionEntity {
     @Column(nullable = false)
     private String modelVersion;
 
+    @Column(nullable = false)
+    private boolean isConfirmedSafe;
+
     @MapsId
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "transaction_id")
