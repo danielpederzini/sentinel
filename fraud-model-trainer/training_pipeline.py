@@ -4,10 +4,6 @@ import argparse
 import joblib
 import os
 
-from dotenv import load_dotenv
-
-load_dotenv()
-
 import lightgbm as lgb
 import numpy as np
 import optuna
@@ -546,10 +542,6 @@ def train_model(
     bundle_path = os.path.join(model_output_directory, f"lgbm_{model_version}.joblib")
     joblib.dump(bundle, bundle_path)
     print(f"\nBundle saved to {bundle_path}")
-
-    if os.environ.get("GOOGLE_DRIVE_CREDENTIALS_JSON") and os.environ.get("GOOGLE_DRIVE_FOLDER_ID"):
-        from google_drive_client import upload_model
-        upload_model(bundle_path)
 
 
 def main() -> None:
