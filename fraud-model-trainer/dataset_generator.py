@@ -113,7 +113,7 @@ class ValidationConfig:
 @dataclass(frozen=True)
 class GeneratorConfig:
     fraud_rate: float = 0.05
-    stealth_rate: float = 0.12
+    stealth_rate: float = 0.08
     cold_start_rate: float = 0.16
     burst_budget_rate: float = 0.04
     quality: QualityConfig = QualityConfig()
@@ -323,7 +323,7 @@ def _choose_scenario(state: UserState, rng: np.random.Generator, cfg: GeneratorC
         Scenario.STEALTH_FRAUD,
         Scenario.FIRST_TRANSACTION_LARGE_PURCHASE,
     ]
-    weights = [0.24, 0.13, 0.13, 0.18, 0.10, cfg.stealth_rate, 0.08]
+    weights = [0.25, 0.14, 0.14, 0.18, 0.10, cfg.stealth_rate, 0.09]
     return _choice(rng, fraud_scenarios, weights)
 
 
@@ -339,7 +339,7 @@ def _pick_ip(rng: np.random.Generator, profile: UserProfile, scenario: Scenario,
     if scenario in {Scenario.ACCOUNT_TAKEOVER, Scenario.SYNTHETIC_IDENTITY}:
         if risky and float(rng.random()) < 0.70:
             return int(rng.choice(risky))
-    if scenario == Scenario.STEALTH_FRAUD and float(rng.random()) < 0.75:
+    if scenario == Scenario.STEALTH_FRAUD and float(rng.random()) < 0.55:
         return int(rng.choice(profile.roaming_ips))
     if float(rng.random()) < 0.88:
         return profile.home_ip
@@ -354,7 +354,9 @@ def _pick_merchant(rng: np.random.Generator, profile: UserProfile, scenario: Sce
     if scenario == Scenario.MERCHANT_COLLUSION and risky:
         if float(rng.random()) < 0.78:
             return int(rng.choice(risky))
-    if scenario == Scenario.ACCOUNT_TAKEOVER and float(rng.random()) < 0.45 and risky:
+    if scenario == Scenario.ACCOUNT_TAKEOVER and float(rng.random()) < 0.55 and risky:
+        return int(rng.choice(risky))
+    if scenario == Scenario.VELOCITY_BURST and float(rng.random()) < 0.35 and risky:
         return int(rng.choice(risky))
     if float(rng.random()) < 0.82:
         return int(rng.choice(profile.preferred_merchants))
@@ -365,13 +367,13 @@ def _gap_seconds(rng: np.random.Generator, profile: UserProfile, scenario: Scena
     if no_history:
         return _COLD_START_SECONDS
     if scenario == Scenario.VELOCITY_BURST:
-        return int(rng.integers(15, 180))
+        return int(rng.integers(8, 110))
     if scenario == Scenario.CARD_TESTING_THEN_LARGE_PURCHASE:
-        return int(rng.integers(45, 240))
+        return int(rng.integers(30, 180))
     if _scenario_is_fraud(scenario):
-        return int(np.clip(rng.lognormal(mean=math.log(40 * 60), sigma=1.1), 60, 24 * 3600))
-    if float(rng.random()) < 0.05:
-        return int(rng.integers(60, 600))
+        return int(np.clip(rng.lognormal(mean=math.log(25 * 60), sigma=0.85), 60, 18 * 3600))
+    if float(rng.random()) < 0.02:
+        return int(rng.integers(120, 900))
     cadence = 60 * 60 * float(np.clip(rng.lognormal(mean=math.log(14), sigma=0.7), 1.5, 72.0))
     cadence /= max(0.35, profile.activity_weight)
     return int(np.clip(cadence, 2 * 60, 9 * 24 * 3600))
@@ -399,18 +401,18 @@ def _amount_for_scenario(
     if scenario == Scenario.CARD_TESTING_THEN_LARGE_PURCHASE:
         return _clip_amount(_sample_lognormal(rng, max(1_500, baseline * 6), 0.65))
     if scenario == Scenario.ACCOUNT_TAKEOVER:
-        return _clip_amount(_sample_lognormal(rng, max(500, baseline * float(rng.uniform(3.0, 12.0))), 0.55))
+        return _clip_amount(_sample_lognormal(rng, max(500, baseline * float(rng.uniform(4.0, 14.0))), 0.50))
     if scenario == Scenario.MERCHANT_COLLUSION:
-        return _clip_amount(_sample_lognormal(rng, max(350, baseline * float(rng.uniform(1.5, 5.0))), 0.60))
+        return _clip_amount(_sample_lognormal(rng, max(350, baseline * float(rng.uniform(2.0, 6.0))), 0.55))
     if scenario == Scenario.VELOCITY_BURST:
-        return _clip_amount(_sample_lognormal(rng, max(25, baseline * float(rng.uniform(0.35, 1.4))), 0.45))
+        return _clip_amount(_sample_lognormal(rng, max(40, baseline * float(rng.uniform(0.45, 2.2))), 0.50))
     if scenario == Scenario.SYNTHETIC_IDENTITY:
         return _clip_amount(_sample_lognormal(rng, max(800, baseline * float(rng.uniform(3.0, 10.0))), 0.70))
     if scenario == Scenario.STEALTH_FRAUD:
         return _clip_amount(_sample_lognormal(rng, baseline * float(rng.uniform(0.75, 2.6)), 0.40))
     amount = _sample_lognormal(rng, baseline, 0.42)
-    if float(rng.random()) < 0.10:
-        amount *= float(rng.uniform(1.8, 3.5))
+    if float(rng.random()) < 0.04:
+        amount *= float(rng.uniform(1.5, 2.5))
     return _clip_amount(amount)
 
 
@@ -456,8 +458,14 @@ def _materialize_row(
         is_device_trusted = bool(rng.random() < 0.22)
         has_country_mismatch = bool(rng.random() < 0.42)
     elif scenario == Scenario.STEALTH_FRAUD:
-        is_device_trusted = bool(rng.random() < 0.58)
-        has_country_mismatch = bool(rng.random() < 0.26)
+        is_device_trusted = bool(rng.random() < 0.52)
+        has_country_mismatch = bool(rng.random() < 0.28)
+    elif scenario == Scenario.VELOCITY_BURST:
+        is_device_trusted = bool(rng.random() < 0.55)
+        has_country_mismatch = bool(rng.random() < 0.22)
+    elif scenario == Scenario.MERCHANT_COLLUSION:
+        is_device_trusted = bool(rng.random() < 0.60)
+        has_country_mismatch = bool(rng.random() < profile.travel_rate)
     else:
         is_device_trusted = bool(rng.random() < profile.trusted_device_rate)
         has_country_mismatch = bool(rng.random() < profile.travel_rate)
@@ -557,7 +565,7 @@ def _inject_data_quality_issues(df: pd.DataFrame, rng: np.random.Generator, cfg:
 def simulate(
     row_count: int,
     fraud_rate: float = 0.05,
-    stealth_rate: float = 0.12,
+    stealth_rate: float = 0.08,
     seed: int | None = None,
     inject_quality_issues: bool = True,
 ) -> pd.DataFrame:
@@ -760,7 +768,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Generate a synthetic fraud detection dataset.")
     parser.add_argument("num_rows", type=int, help="Number of rows to generate")
     parser.add_argument("--fraud-rate", type=float, default=0.05)
-    parser.add_argument("--stealth-rate", type=float, default=0.12)
+    parser.add_argument("--stealth-rate", type=float, default=0.08)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--output", type=str, default="data/transactions.csv")
     parser.add_argument("--no-quality-issues", action="store_true", help="Disable data quality issue injection")
