@@ -149,7 +149,7 @@ BEGIN
         'user' || g || '@example.com',
         date '1970-01-01' + floor(random() * 11000)::int,
         v_countries[1 + floor(random() * array_length(v_countries, 1))::int],
-        timestamp '2025-01-01' + random() * interval '540 days'
+        now() - random() * interval '540 days'
     FROM generate_series(1, v_num_users) AS g
     ON CONFLICT (id) DO NOTHING;
 
@@ -160,7 +160,7 @@ BEGIN
         'merchant' || g || '@example.com',
         round((random() * 0.85 + 0.05)::numeric, 2)::real,
         v_categories[1 + floor(random() * array_length(v_categories, 1))::int],
-        timestamp '2025-01-01' + random() * interval '300 days'
+        now() - random() * interval '300 days'
     FROM generate_series(1, v_num_merchants) AS g
     ON CONFLICT (id) DO NOTHING;
 
@@ -169,7 +169,7 @@ BEGIN
     SELECT
         'card-' || lpad(g::text, 6, '0'),
         v_card_types[1 + floor(random() * array_length(v_card_types, 1))::int],
-        timestamp '2025-01-01' + random() * interval '540 days'
+        now() - random() * interval '540 days'
     FROM generate_series(1, v_num_users) AS g
     ON CONFLICT (id) DO NOTHING;
 
@@ -179,7 +179,7 @@ BEGIN
         'device-' || lpad(g::text, 6, '0'),
         'Device ' || g,
         v_device_types[1 + floor(random() * array_length(v_device_types, 1))::int],
-        timestamp '2025-01-01' + random() * interval '540 days'
+        now() - random() * interval '540 days'
     FROM generate_series(1, v_num_devices) AS g
     ON CONFLICT (id) DO NOTHING;
 
@@ -194,7 +194,7 @@ BEGIN
             floor(random() * 256)::int   || '.' ||
             floor(random() * 256)::int   || '.' ||
             (1 + floor(random() * 254))::int,
-        timestamp '2025-06-01' + random() * interval '365 days',
+        now() - random() * interval '365 days',
         'user-'     || lpad((1 + floor(random() * v_num_users))::text, 6, '0'),
         CASE WHEN random() < 0.70
              THEN 'device-' || lpad((1 + floor(random() * v_num_devices))::text, 6, '0')
