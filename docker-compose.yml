@@ -100,6 +100,9 @@ services:
     container_name: sentinel-fraud-inference-engine
     ports:
       - "8083:8083"
+    environment:
+      GOOGLE_DRIVE_CREDENTIALS_JSON: ${GOOGLE_DRIVE_CREDENTIALS_JSON}
+      GOOGLE_DRIVE_FOLDER_ID: ${GOOGLE_DRIVE_FOLDER_ID}
 
   feature-manager:
     build:
