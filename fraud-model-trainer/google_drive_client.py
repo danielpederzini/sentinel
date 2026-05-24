@@ -11,7 +11,7 @@ SCOPES = ["https://www.googleapis.com/auth/drive"]
 
 
 def _build_drive_service():
-    credentials_json = os.environ.get("GOOGLE_DRIVE_CREDENTIALS_JSON", "")
+    credentials_json = os.environ.get("GOOGLE_DRIVE_CREDENTIALS_JSON", "").strip()
     if not credentials_json:
         raise RuntimeError(
             "GOOGLE_DRIVE_CREDENTIALS_JSON is not set. "
@@ -24,12 +24,16 @@ def _build_drive_service():
         info = json.loads(credentials_json)
         credentials = Credentials.from_service_account_info(info, scopes=SCOPES)
 
+    delegate_email = os.environ.get("GOOGLE_DRIVE_DELEGATE_EMAIL", "").strip()
+    if delegate_email:
+        credentials = credentials.with_subject(delegate_email)
+
     return build("drive", "v3", credentials=credentials)
 
 
 def upload_model(local_path: str) -> str:
     """Upload a .joblib model bundle to Google Drive and return the file ID."""
-    folder_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "")
+    folder_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "").strip()
     if not folder_id:
         raise RuntimeError("GOOGLE_DRIVE_FOLDER_ID is not set.")
 
@@ -41,7 +45,7 @@ def upload_model(local_path: str) -> str:
 
     uploaded_file = (
         service.files()
-        .create(body=file_metadata, media_body=media, fields="id,name")
+        .create(body=file_metadata, media_body=media, fields="id,name", supportsAllDrives=True)
         .execute()
     )
 
