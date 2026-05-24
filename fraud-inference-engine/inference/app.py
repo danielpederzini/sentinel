@@ -168,11 +168,6 @@ def _build_explainability(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
-        from google_drive_client import download_latest_model
-        downloaded = download_latest_model(MODELS_DIRECTORY)
-        if downloaded:
-            print(f"Google Drive model sync complete: {downloaded}")
-
         model, calibrator, metrics, version, feature_names = _load_latest_model(MODELS_DIRECTORY)
         _state["model"] = model
         _state["calibrator"] = calibrator
