@@ -4,6 +4,10 @@ import argparse
 import joblib
 import os
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 import lightgbm as lgb
 import numpy as np
 import optuna
