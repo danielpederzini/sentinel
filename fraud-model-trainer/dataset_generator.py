@@ -34,6 +34,7 @@ _COUNTRY_WEIGHTS /= _COUNTRY_WEIGHTS.sum()
 _FIVE_MINUTES = 5 * 60
 _ONE_HOUR = 60 * 60
 _COLD_START_SECONDS = 30 * 24 * 3600
+_COLD_START_AVERAGE_AMOUNT = 100.0
 
 _OUTPUT_COLUMNS = [
     "transaction_id",
@@ -113,7 +114,7 @@ class ValidationConfig:
 class GeneratorConfig:
     fraud_rate: float = 0.05
     stealth_rate: float = 0.12
-    cold_start_rate: float = 0.08
+    cold_start_rate: float = 0.16
     burst_budget_rate: float = 0.04
     quality: QualityConfig = QualityConfig()
     validation: ValidationConfig = ValidationConfig()
@@ -299,12 +300,17 @@ def _choose_scenario(state: UserState, rng: np.random.Generator, cfg: GeneratorC
     if no_history:
         return _choice(
             rng,
-            [Scenario.FIRST_TRANSACTION_LARGE_PURCHASE, Scenario.SYNTHETIC_IDENTITY, Scenario.LEGITIMATE_ROUTINE],
-            [0.28, 0.12, 0.60],
+            [
+                Scenario.FIRST_TRANSACTION_LARGE_PURCHASE,
+                Scenario.SYNTHETIC_IDENTITY,
+                Scenario.LEGITIMATE_ROUTINE,
+                Scenario.LEGITIMATE_HIGH_VALUE,
+            ],
+            [0.06, 0.04, 0.65, 0.25],
         )
 
     if float(rng.random()) >= cfg.fraud_rate:
-        if state.profile.segment in (UserSegment.HIGH_VALUE, UserSegment.BUSINESS) and float(rng.random()) < 0.12:
+        if state.profile.segment in (UserSegment.HIGH_VALUE, UserSegment.BUSINESS) and float(rng.random()) < 0.18:
             return Scenario.LEGITIMATE_HIGH_VALUE
         return Scenario.LEGITIMATE_ROUTINE
 
@@ -327,7 +333,10 @@ def _scenario_is_fraud(scenario: Scenario) -> bool:
 
 def _pick_ip(rng: np.random.Generator, profile: UserProfile, scenario: Scenario, ips: list[IpRecord]) -> int:
     risky = [i for i, ip in enumerate(ips) if ip.risk_score > 0.65 or ip.fraud_ring]
-    if scenario in {Scenario.ACCOUNT_TAKEOVER, Scenario.FIRST_TRANSACTION_LARGE_PURCHASE, Scenario.SYNTHETIC_IDENTITY}:
+    if scenario == Scenario.FIRST_TRANSACTION_LARGE_PURCHASE:
+        if risky and float(rng.random()) < 0.45:
+            return int(rng.choice(risky))
+    if scenario in {Scenario.ACCOUNT_TAKEOVER, Scenario.SYNTHETIC_IDENTITY}:
         if risky and float(rng.random()) < 0.70:
             return int(rng.choice(risky))
     if scenario == Scenario.STEALTH_FRAUD and float(rng.random()) < 0.75:
@@ -339,7 +348,10 @@ def _pick_ip(rng: np.random.Generator, profile: UserProfile, scenario: Scenario,
 
 def _pick_merchant(rng: np.random.Generator, profile: UserProfile, scenario: Scenario, merchants: list[MerchantRecord]) -> int:
     risky = [i for i, m in enumerate(merchants) if m.risk_score > 0.60]
-    if scenario in {Scenario.MERCHANT_COLLUSION, Scenario.FIRST_TRANSACTION_LARGE_PURCHASE} and risky:
+    if scenario == Scenario.FIRST_TRANSACTION_LARGE_PURCHASE and risky:
+        if float(rng.random()) < 0.45:
+            return int(rng.choice(risky))
+    if scenario == Scenario.MERCHANT_COLLUSION and risky:
         if float(rng.random()) < 0.78:
             return int(rng.choice(risky))
     if scenario == Scenario.ACCOUNT_TAKEOVER and float(rng.random()) < 0.45 and risky:
@@ -365,13 +377,25 @@ def _gap_seconds(rng: np.random.Generator, profile: UserProfile, scenario: Scena
     return int(np.clip(cadence, 2 * 60, 9 * 24 * 3600))
 
 
-def _amount_for_scenario(rng: np.random.Generator, baseline: float, profile: UserProfile, scenario: Scenario) -> float:
+def _amount_for_scenario(
+    rng: np.random.Generator,
+    baseline: float,
+    profile: UserProfile,
+    scenario: Scenario,
+    no_history: bool,
+) -> float:
     if scenario == Scenario.FIRST_TRANSACTION_LARGE_PURCHASE:
-        floor = max(25_000.0, baseline * 40)
-        return _clip_amount(_sample_lognormal(rng, floor, 0.90))
+        if float(rng.random()) < 0.03:
+            return _clip_amount(_sample_lognormal(rng, max(50_000.0, baseline * 35), 0.75))
+        floor = max(3_000.0, baseline * 6)
+        return _clip_amount(_sample_lognormal(rng, floor, 0.65), upper=250_000)
     if scenario == Scenario.LEGITIMATE_HIGH_VALUE:
-        multiplier = float(rng.uniform(2.5, 8.0 if profile.segment == UserSegment.HIGH_VALUE else 4.5))
-        return _clip_amount(_sample_lognormal(rng, baseline * multiplier, 0.35), upper=250_000)
+        if no_history:
+            if float(rng.random()) < 0.08:
+                return _clip_amount(_sample_lognormal(rng, 750_000.0, 0.45), upper=1_500_000)
+            return _clip_amount(_sample_lognormal(rng, max(25_000.0, baseline * 15), 0.70), upper=500_000)
+        multiplier = float(rng.uniform(2.0, 10.0 if profile.segment == UserSegment.HIGH_VALUE else 5.5))
+        return _clip_amount(_sample_lognormal(rng, baseline * multiplier, 0.45), upper=500_000)
     if scenario == Scenario.CARD_TESTING_THEN_LARGE_PURCHASE:
         return _clip_amount(_sample_lognormal(rng, max(1_500, baseline * 6), 0.65))
     if scenario == Scenario.ACCOUNT_TAKEOVER:
@@ -384,7 +408,10 @@ def _amount_for_scenario(rng: np.random.Generator, baseline: float, profile: Use
         return _clip_amount(_sample_lognormal(rng, max(800, baseline * float(rng.uniform(3.0, 10.0))), 0.70))
     if scenario == Scenario.STEALTH_FRAUD:
         return _clip_amount(_sample_lognormal(rng, baseline * float(rng.uniform(0.75, 2.6)), 0.40))
-    return _clip_amount(_sample_lognormal(rng, baseline, 0.42))
+    amount = _sample_lognormal(rng, baseline, 0.42)
+    if float(rng.random()) < 0.10:
+        amount *= float(rng.uniform(1.8, 3.5))
+    return _clip_amount(amount)
 
 
 def _materialize_row(
@@ -399,7 +426,8 @@ def _materialize_row(
     is_fraud = _scenario_is_fraud(scenario)
     historical_count = state.running_amount_count
     no_history = historical_count == 0
-    baseline_average = state.running_amount_sum / historical_count if historical_count else profile.baseline_amount
+    behavior_baseline = state.running_amount_sum / historical_count if historical_count else profile.baseline_amount
+    feature_average = state.running_amount_sum / historical_count if historical_count else _COLD_START_AVERAGE_AMOUNT
 
     base_ts = state.last_timestamp or simulation_start
     event_ts = base_ts + timedelta(seconds=_gap_seconds(rng, profile, scenario, no_history))
@@ -414,14 +442,17 @@ def _materialize_row(
     ip_risk = float(round(np.clip(ips[ip_idx].risk_score + rng.normal(0, 0.035), 0, 1), 4))
     merchant_risk = float(round(np.clip(merchants[merchant_idx].risk_score + rng.normal(0, 0.025), 0, 1), 4))
 
-    amount = _amount_for_scenario(rng, baseline_average, profile, scenario)
+    amount = _amount_for_scenario(rng, behavior_baseline, profile, scenario, no_history)
     if scenario == Scenario.LEGITIMATE_ROUTINE and merchants[merchant_idx].category in {"TRAVEL", "ENTERTAINMENT"}:
         amount = _clip_amount(amount * float(rng.uniform(1.05, 1.25)))
 
     if scenario == Scenario.ACCOUNT_TAKEOVER:
         is_device_trusted = bool(rng.random() < 0.20)
         has_country_mismatch = bool(rng.random() < 0.66)
-    elif scenario in {Scenario.FIRST_TRANSACTION_LARGE_PURCHASE, Scenario.SYNTHETIC_IDENTITY}:
+    elif scenario == Scenario.FIRST_TRANSACTION_LARGE_PURCHASE:
+        is_device_trusted = bool(rng.random() < 0.45)
+        has_country_mismatch = bool(rng.random() < 0.30)
+    elif scenario == Scenario.SYNTHETIC_IDENTITY:
         is_device_trusted = bool(rng.random() < 0.22)
         has_country_mismatch = bool(rng.random() < 0.42)
     elif scenario == Scenario.STEALTH_FRAUD:
@@ -440,7 +471,7 @@ def _materialize_row(
     transaction_count_1h = len(state.recent_timestamps_1h)
     amount_velocity_1hour = round(float(sum(state.recent_amounts_1h)) + amount, 2)
     distinct_merchants = len(set(state.recent_merchants_1h) | {merchant_idx})
-    amount_to_average_ratio = amount / max(1.0, baseline_average)
+    amount_to_average_ratio = amount / max(1.0, feature_average)
     card_age_days = max(1, int((event_ts - profile.card_created_at).days))
     account_age_days = max(1, int((event_ts - profile.account_created_at).days))
 
@@ -448,7 +479,7 @@ def _materialize_row(
         "transaction_id": _generate_transaction_id(),
         "user_id": profile.user_id,
         "amount": round(amount, 2),
-        "user_average_amount": round(baseline_average, 2),
+        "user_average_amount": round(feature_average, 2),
         "user_historical_transaction_count": int(historical_count),
         "user_transaction_count_5min": int(transaction_count_5m),
         "user_transaction_count_1hour": int(transaction_count_1h),
