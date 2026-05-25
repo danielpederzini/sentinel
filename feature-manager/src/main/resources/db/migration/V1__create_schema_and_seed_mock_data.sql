@@ -280,7 +280,7 @@ BEGIN
     ON CONFLICT (transaction_id) DO NOTHING;
 
     -- 7. Transaction predictions
-    INSERT INTO transaction_predictions (transaction_id, fraud_probability, risk_level, model_version)
+    INSERT INTO transaction_predictions (transaction_id, fraud_probability, risk_level, model_version, is_marked_as_safe)
     SELECT
         sub.tx_id,
         sub.prob,
@@ -289,7 +289,8 @@ BEGIN
             WHEN sub.prob > 0.30 THEN 'MEDIUM'
             ELSE 'LOW'
         END,
-        'lgbm_1.0.0'
+        'lgbm_1.0.0',
+        sub.prob < 0.70
     FROM (
         SELECT t.id AS tx_id, round(random()::numeric, 4)::double precision AS prob
         FROM transactions t

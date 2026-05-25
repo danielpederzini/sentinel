@@ -43,10 +43,11 @@ public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureReques
             CardEntity cardEntity = cardService.getByIdOrThrow(input.cardId());
 
             BigDecimal rawAverageAmount = transactionService.findAverageAmountByUserId(input.userId());
-            long userHistoricalTransactionCount = transactionService.countByUserId(input.userId());
             BigDecimal averageAmount = rawAverageAmount.compareTo(BigDecimal.ZERO) > 0
                     ? rawAverageAmount
                     : COLD_START_AVERAGE_AMOUNT;
+
+            long userHistoricalTransactionCount = transactionService.countByUserId(input.userId());
             float amountToAverageRatio = getAmountToAverageRatio(input.amount(), averageAmount);
             boolean hasCountryMismatch = !userEntity.getHomeCountryCode().equals(input.countryCode());
             boolean isDeviceTrusted = trustedDeviceService.existsById(input.deviceId());
