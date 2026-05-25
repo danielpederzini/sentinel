@@ -95,6 +95,7 @@ create table if not exists transaction_predictions (
     fraud_probability double precision not null,
     risk_level varchar(16) not null,
     model_version varchar(64) not null,
+    is_marked_as_safe boolean not null default false,
     constraint fk_tp_transaction foreign key (transaction_id) references transactions (id)
 );
 
