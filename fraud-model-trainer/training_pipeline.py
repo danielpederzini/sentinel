@@ -5,8 +5,6 @@ import joblib
 import os
 
 import lightgbm as lgb
-from minio import Minio
-from minio.error import S3Error
 import numpy as np
 import optuna
 import pandas as pd
@@ -559,25 +557,6 @@ def train_model(
     bundle_path = os.path.join(model_output_directory, f"lgbm_{model_version}.joblib")
     joblib.dump(bundle, bundle_path)
     print(f"\nBundle saved to {bundle_path}")
-
-    _upload_model_to_minio(bundle_path, f"lgbm_{model_version}.joblib")
-
-
-def _upload_model_to_minio(local_path: str, object_name: str) -> None:
-    endpoint = os.environ.get("MINIO_ENDPOINT", "localhost:9000")
-    access_key = os.environ.get("MINIO_ACCESS_KEY", "minioadmin")
-    secret_key = os.environ.get("MINIO_SECRET_KEY", "minioadmin")
-    bucket = os.environ.get("MINIO_BUCKET", "models")
-    use_ssl = os.environ.get("MINIO_USE_SSL", "false").lower() == "true"
-
-    client = Minio(endpoint, access_key=access_key, secret_key=secret_key, secure=use_ssl)
-
-    if not client.bucket_exists(bucket):
-        client.make_bucket(bucket)
-        print(f"Created MinIO bucket '{bucket}'")
-
-    client.fput_object(bucket, object_name, local_path)
-    print(f"Uploaded model to MinIO: {bucket}/{object_name}")
 
 
 def main() -> None:
