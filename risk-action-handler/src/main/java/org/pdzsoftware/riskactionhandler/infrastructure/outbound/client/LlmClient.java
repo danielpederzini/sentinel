@@ -1,5 +1,6 @@
 package org.pdzsoftware.riskactionhandler.infrastructure.outbound.client;
 
+import lombok.extern.slf4j.Slf4j;
 import org.pdzsoftware.riskactionhandler.domain.exception.LlmClientException;
 import org.pdzsoftware.riskactionhandler.infrastructure.config.properties.LlmRestClientProperties;
 import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.ExplainabilityDetailsMessage;
@@ -23,6 +24,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Component
 public class LlmClient {
 	private static final String SYSTEM_ROLE = "system";
@@ -114,6 +116,7 @@ public class LlmClient {
 			}
 			return llmMessage.content();
 		} catch (RestClientException | NullPointerException exception) {
+			log.error("LLM explanation request failed for transaction {}", transactionScoredMessage.transactionId(), exception);
 			throw new LlmClientException(String.format("Failed to get LLM explainability details for transaction %s",
 					transactionScoredMessage.transactionId()), exception);
 		}

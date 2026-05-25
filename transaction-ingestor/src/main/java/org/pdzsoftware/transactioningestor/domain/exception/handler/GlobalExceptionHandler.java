@@ -49,7 +49,7 @@ public class GlobalExceptionHandler {
                 .message(String.format("An unexpected error occurred: %s", exception.getMessage()))
                 .build();
 
-        log.warn("Unexpected error occurred: {}", exception.getMessage(), exception);
+        log.error("Unexpected error occurred: {}", exception.getMessage(), exception);
         return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse));
     }
 }

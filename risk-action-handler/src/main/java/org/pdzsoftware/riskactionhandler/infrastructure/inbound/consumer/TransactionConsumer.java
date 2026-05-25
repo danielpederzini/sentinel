@@ -21,13 +21,15 @@ public class TransactionConsumer {
             containerFactory = "kafkaListenerContainerFactory"
     )
     public void consume(@Valid TransactionScoredMessage payload) {
-        log.info("Received scored transaction {} | riskLevel: {} | fraudProbability: {}",
-                payload.transactionId(),
-                payload.predictionMessage().riskLevel(),
-                payload.predictionMessage().fraudProbability());
+        RiskLevel riskLevel = payload.predictionMessage().riskLevel();
 
-        if (RiskLevel.HIGH.equals(payload.predictionMessage().riskLevel())) {
+        if (RiskLevel.HIGH.equals(riskLevel)) {
+            log.info("Received HIGH risk transaction {} | fraudProbability: {}",
+                    payload.transactionId(), payload.predictionMessage().fraudProbability());
             notifyRiskUseCase.execute(payload);
+        } else {
+            log.debug("Received scored transaction {} | riskLevel: {} | fraudProbability: {}",
+                    payload.transactionId(), riskLevel, payload.predictionMessage().fraudProbability());
         }
     }
 }

@@ -121,7 +121,7 @@ public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureReques
                     .velocityIntensity(velocityIntensity)
                     .build();
 
-            log.info("Calculated fraud features for transaction {}", input.transactionId());
+            log.debug("Calculated fraud features for transaction {}", input.transactionId());
             return fraudFeatureResponse;
         } catch (RuntimeException exception) {
             throw new FeatureCalculationException(String.format(

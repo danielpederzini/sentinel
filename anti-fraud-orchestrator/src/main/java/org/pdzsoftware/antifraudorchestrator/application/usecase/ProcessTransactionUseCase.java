@@ -35,13 +35,11 @@ public class ProcessTransactionUseCase implements VoidUseCase<ProcessTransaction
 
 			TransactionScoredMessage scoredMessage = TransactionScoredMessage.from(payload, features, prediction);
 
-			log.info("Processed transaction {} | key: {} | riskLevel: {} | fraudProbability: {} | modelVersion: {} | explainability: {}",
+			log.info("Processed transaction {} | riskLevel: {} | fraudProbability: {} | modelVersion: {}",
 					payload.transactionId(),
-					messageKey,
 					prediction.riskLevel(),
 					prediction.fraudProbability(),
-					prediction.modelVersion(),
-					prediction.explainability()
+					prediction.modelVersion()
 			);
 
 			transactionProducer.publish(scoredMessage)
@@ -55,8 +53,6 @@ public class ProcessTransactionUseCase implements VoidUseCase<ProcessTransaction
 	private static void handlePublishResult(Throwable exception, TransactionCreatedMessage payload, String messageKey) {
 		if (exception != null) {
 			log.error("Failed to publish scored transaction {} with key {}", payload.transactionId(), messageKey, exception);
-		} else {
-			log.info("Successfully published scored transaction {} with key {}", payload.transactionId(), messageKey);
 		}
 	}
 }
