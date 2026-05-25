@@ -280,7 +280,7 @@ BEGIN
     ON CONFLICT (transaction_id) DO NOTHING;
 
     -- 7. Transaction predictions
-    INSERT INTO transaction_predictions (transaction_id, fraud_probability, risk_level, model_version, is_confirmed_safe)
+    INSERT INTO transaction_predictions (transaction_id, fraud_probability, risk_level, model_version, is_marked_as_safe)
     SELECT
         sub.tx_id,
         sub.prob,

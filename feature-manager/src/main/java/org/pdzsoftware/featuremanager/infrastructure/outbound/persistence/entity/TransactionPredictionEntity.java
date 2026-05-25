@@ -40,7 +40,7 @@ public class TransactionPredictionEntity {
     private String modelVersion;
 
     @Column(nullable = false)
-    private boolean isConfirmedSafe;
+    private boolean isMarkedAsSafe;
 
     @MapsId
     @OneToOne(fetch = FetchType.LAZY)

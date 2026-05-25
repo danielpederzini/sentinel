@@ -13,7 +13,7 @@ public interface TransactionRepository extends JpaRepository<TransactionEntity, 
             from TransactionEntity t
             left join t.prediction tp
             where t.user.id = :userId
-            and tp.isConfirmedSafe = true
+            and tp.isMarkedAsSafe = true
             """)
     Double findAverageAmountByUserId(@Param("userId") String userId);
 
