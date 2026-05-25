@@ -11,6 +11,7 @@ import uvicorn
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from minio import Minio
 from sklearn.isotonic import IsotonicRegression
 from http import HTTPStatus
 
@@ -34,6 +35,35 @@ MODELS_DIRECTORY = os.environ.get(
 
 _state: dict = {}
 _error_logger = ErrorLogger()
+
+
+def _download_models_from_minio(model_directory: str) -> None:
+    endpoint = os.environ.get("MINIO_ENDPOINT")
+    if not endpoint:
+        print("MINIO_ENDPOINT not set, skipping MinIO download")
+        return
+
+    access_key = os.environ.get("MINIO_ACCESS_KEY", "minioadmin")
+    secret_key = os.environ.get("MINIO_SECRET_KEY", "minioadmin")
+    bucket = os.environ.get("MINIO_BUCKET", "models")
+    use_ssl = os.environ.get("MINIO_USE_SSL", "false").lower() == "true"
+
+    client = Minio(endpoint, access_key=access_key, secret_key=secret_key, secure=use_ssl)
+
+    if not client.bucket_exists(bucket):
+        print(f"MinIO bucket '{bucket}' does not exist, skipping download")
+        return
+
+    os.makedirs(model_directory, exist_ok=True)
+    objects = list(client.list_objects(bucket, prefix="lgbm_"))
+    if not objects:
+        print(f"No model objects found in MinIO bucket '{bucket}'")
+        return
+
+    latest_object = max(objects, key=lambda obj: obj.last_modified)
+    local_path = os.path.join(model_directory, latest_object.object_name)
+    client.fget_object(bucket, latest_object.object_name, local_path)
+    print(f"Downloaded model from MinIO: {bucket}/{latest_object.object_name}")
 
 
 def _load_latest_model(
@@ -179,6 +209,7 @@ def _build_explainability(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
+        _download_models_from_minio(MODELS_DIRECTORY)
         model, calibrator, metrics, version, feature_names, feature_caps = _load_latest_model(MODELS_DIRECTORY)
         _state["model"] = model
         _state["calibrator"] = calibrator
