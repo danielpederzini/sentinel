@@ -45,6 +45,7 @@ services:
         done
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic transactions.created --partitions 1 --replication-factor 1
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic transactions.scored --partitions 1 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic models.released --partitions 1 --replication-factor 1
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --list
     restart: "no"
 
@@ -130,6 +131,8 @@ services:
       dockerfile: inference/Dockerfile
     container_name: sentinel-fraud-inference-engine
     depends_on:
+      kafka-init:
+        condition: service_completed_successfully
       minio-init:
         condition: service_completed_successfully
     ports:
@@ -140,6 +143,8 @@ services:
       MINIO_SECRET_KEY: minioadmin
       MINIO_BUCKET: models
       MINIO_USE_SSL: "false"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_MODELS_RELEASED_TOPIC: models.released
 
   feature-manager:
     build:
