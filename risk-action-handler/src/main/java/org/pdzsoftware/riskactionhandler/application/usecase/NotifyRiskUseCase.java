@@ -3,10 +3,16 @@ package org.pdzsoftware.riskactionhandler.application.usecase;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.pdzsoftware.riskactionhandler.application.util.EmailContentBuilder;
+import org.pdzsoftware.riskactionhandler.domain.entity.NotificationTask;
+import org.pdzsoftware.riskactionhandler.domain.enums.NotificationTaskStatus;
+import org.pdzsoftware.riskactionhandler.infrastructure.config.properties.NotificationSchedulerProperties;
 import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.TransactionScoredMessage;
 import org.pdzsoftware.riskactionhandler.infrastructure.outbound.client.EmailClient;
 import org.pdzsoftware.riskactionhandler.infrastructure.outbound.client.LlmClient;
+import org.pdzsoftware.riskactionhandler.infrastructure.outbound.repository.NotificationTaskRepository;
 import org.springframework.stereotype.Component;
+
+import java.time.Instant;
 
 @Slf4j
 @Component
@@ -14,20 +20,67 @@ import org.springframework.stereotype.Component;
 public class NotifyRiskUseCase {
     private final LlmClient llmClient;
     private final EmailClient emailClient;
+    private final NotificationTaskRepository notificationTaskRepository;
+    private final NotificationSchedulerProperties schedulerProperties;
 
-    public void execute(TransactionScoredMessage message) {
+    public void execute(NotificationTask task) {
         try {
-            String transactionId = message.transactionId();
+            if (NotificationTaskStatus.PENDING_LLM.equals(task.getStatus())) {
+                processLlmStep(task);
+            }
 
-            String llmExplanation = llmClient.getFraudExplanation(message);
-            String emailContent = EmailContentBuilder.buildFraudAlertEmail(message, llmExplanation);
-            String subject = "Fraud Alert — Transaction " + transactionId;
-
-            emailClient.sendEmail(transactionId, subject, emailContent);
-            log.info("Sent fraud alert notification for transaction {}", transactionId);
+            if (NotificationTaskStatus.PENDING_EMAIL.equals(task.getStatus())) {
+                processEmailStep(task);
+            }
         } catch (RuntimeException exception) {
-            log.error("Failed to send notification for transaction {}: {}",
-                    message.transactionId(), exception.getMessage(), exception);
+            handleFailure(task, exception);
         }
+    }
+
+    private void processLlmStep(NotificationTask task) {
+        TransactionScoredMessage message = task.getPayload();
+        String llmExplanation = llmClient.getFraudExplanation(message);
+        String emailContent = EmailContentBuilder.buildFraudAlertEmail(message, llmExplanation);
+
+        task.setLlmExplanation(llmExplanation);
+        task.setEmailContent(emailContent);
+        task.setStatus(NotificationTaskStatus.PENDING_EMAIL);
+        notificationTaskRepository.save(task);
+
+        log.info("LLM step completed for transaction {}", task.getTransactionId());
+    }
+
+    private void processEmailStep(NotificationTask task) {
+        String transactionId = task.getTransactionId();
+        String subject = "Fraud Alert — Transaction " + transactionId;
+
+        emailClient.sendEmail(transactionId, subject, task.getEmailContent());
+
+        task.setStatus(NotificationTaskStatus.COMPLETED);
+        task.setCompletedAt(Instant.now());
+        task.setErrorMessage(null);
+        notificationTaskRepository.save(task);
+
+        log.info("Sent fraud alert notification for transaction {}", transactionId);
+    }
+
+    private void handleFailure(NotificationTask task, RuntimeException exception) {
+        int attempts = task.getAttempts() + 1;
+        task.setAttempts(attempts);
+        task.setLastAttemptAt(Instant.now());
+        task.setErrorMessage(exception.getMessage());
+
+        if (attempts >= schedulerProperties.getMaxAttempts()) {
+            task.setStatus(NotificationTaskStatus.DEAD_LETTER);
+            log.error("Notification task for transaction {} moved to DEAD_LETTER after {} attempts: {}",
+                    task.getTransactionId(), attempts, exception.getMessage());
+        } else {
+            long delaySeconds = schedulerProperties.getBaseDelaySeconds() * (1L << (attempts - 1));
+            task.setNextRetryAt(Instant.now().plusSeconds(delaySeconds));
+            log.warn("Notification task for transaction {} failed (attempt {}), next retry at {}: {}",
+                    task.getTransactionId(), attempts, task.getNextRetryAt(), exception.getMessage());
+        }
+
+        notificationTaskRepository.save(task);
     }
 }
