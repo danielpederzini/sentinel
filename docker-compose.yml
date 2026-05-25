@@ -92,13 +92,54 @@ services:
       retries: 10
       start_period: 10s
 
+  minio:
+    image: minio/minio:latest
+    container_name: sentinel-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        mc alias set sentinel http://minio:9000 minioadmin minioadmin
+        mc mb --ignore-existing sentinel/models
+    restart: "no"
+
   fraud-inference-engine:
     build:
       context: ./fraud-inference-engine
       dockerfile: inference/Dockerfile
     container_name: sentinel-fraud-inference-engine
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
     ports:
       - "8083:8083"
+    environment:
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: models
+      MINIO_USE_SSL: "false"
 
   feature-manager:
     build:
@@ -177,3 +218,4 @@ volumes:
   kafka_data:
   redis_data:
   postgres_data:
+  minio_data:
