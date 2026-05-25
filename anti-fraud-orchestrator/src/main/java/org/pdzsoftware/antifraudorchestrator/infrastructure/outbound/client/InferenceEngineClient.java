@@ -1,5 +1,6 @@
 package org.pdzsoftware.antifraudorchestrator.infrastructure.outbound.client;
 
+import lombok.extern.slf4j.Slf4j;
 import org.pdzsoftware.antifraudorchestrator.infrastructure.outbound.client.dto.FraudFeatureResponse;
 import org.pdzsoftware.antifraudorchestrator.infrastructure.outbound.client.dto.FraudPredictionRequest;
 import org.pdzsoftware.antifraudorchestrator.infrastructure.outbound.client.dto.FraudPredictionResponse;
@@ -12,6 +13,7 @@ import org.springframework.web.client.RestClientException;
 
 import java.util.Objects;
 
+@Slf4j
 @Component
 public class InferenceEngineClient {
 	private static final String TRANSACTION_SCORE_ENDPOINT = "/transaction/score";
@@ -34,6 +36,7 @@ public class InferenceEngineClient {
 
 			return Objects.requireNonNull(response, "Inference Engine returned an empty response body");
 		} catch (RestClientException | NullPointerException exception) {
+			log.error("Failed to score transaction {} with Inference Engine", features.transactionId(), exception);
 			throw new InferenceEngineClientException("Failed to score transaction with Inference Engine", exception);
 		}
 	}

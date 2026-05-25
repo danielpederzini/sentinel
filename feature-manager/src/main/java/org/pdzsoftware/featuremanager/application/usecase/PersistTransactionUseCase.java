@@ -63,7 +63,7 @@ public class PersistTransactionUseCase {
         transactionEntity.setPrediction(predictionEntity);
 
         String savedId = transactionService.save(transactionEntity);
-        log.info("Transaction {} persisted successfully", savedId);
+        log.debug("Transaction {} persisted successfully", savedId);
         return savedId;
     }
 

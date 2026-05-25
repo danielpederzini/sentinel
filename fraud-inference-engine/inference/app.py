@@ -36,6 +36,8 @@ MODELS_DIRECTORY = os.environ.get(
     os.path.join(os.path.dirname(__file__), "models"),
 )
 
+logger = logging.getLogger(__name__)
+
 _state: dict = {}
 _state_lock = threading.Lock()
 _error_logger = ErrorLogger()
@@ -44,7 +46,7 @@ _error_logger = ErrorLogger()
 def _download_models_from_minio(model_directory: str) -> None:
     endpoint = os.environ.get("MINIO_ENDPOINT")
     if not endpoint:
-        print("MINIO_ENDPOINT not set, skipping MinIO download")
+        logger.info("MINIO_ENDPOINT not set, skipping MinIO download")
         return
 
     access_key = os.environ.get("MINIO_ACCESS_KEY", "minioadmin")
@@ -55,19 +57,19 @@ def _download_models_from_minio(model_directory: str) -> None:
     client = Minio(endpoint, access_key=access_key, secret_key=secret_key, secure=use_ssl)
 
     if not client.bucket_exists(bucket):
-        print(f"MinIO bucket '{bucket}' does not exist, skipping download")
+        logger.warning("MinIO bucket '%s' does not exist, skipping download", bucket)
         return
 
     os.makedirs(model_directory, exist_ok=True)
     objects = list(client.list_objects(bucket, prefix="lgbm_"))
     if not objects:
-        print(f"No model objects found in MinIO bucket '{bucket}'")
+        logger.warning("No model objects found in MinIO bucket '%s'", bucket)
         return
 
     latest_object = max(objects, key=lambda obj: obj.last_modified)
     local_path = os.path.join(model_directory, latest_object.object_name)
     client.fget_object(bucket, latest_object.object_name, local_path)
-    print(f"Downloaded model from MinIO: {bucket}/{latest_object.object_name}")
+    logger.info("Downloaded model from MinIO: %s/%s", bucket, latest_object.object_name)
 
 
 def _load_latest_model(
@@ -229,20 +231,20 @@ def _apply_model_to_state(
         _state["feature_caps"] = feature_caps
         _state["explainer"] = explainer
     caps_info = ", ".join(f"{k}={v:.2f}" for k, v in feature_caps.items()) if feature_caps else "none"
-    print(f"Loaded LightGBM model version {version} with threshold {metrics['threshold']:.4f}, caps: {caps_info}")
+    logger.info("Loaded LightGBM model version %s with threshold %.4f, caps: %s", version, metrics['threshold'], caps_info)
 
 
 def _handle_model_released(event: dict) -> None:
     object_name = event.get("object_name", "")
     bucket = event.get("bucket", os.environ.get("MINIO_BUCKET", "models"))
     if not object_name:
-        print("Received models.released event with no object_name, skipping")
+        logger.warning("Received models.released event with no object_name, skipping")
         return
 
-    print(f"Received models.released event for {bucket}/{object_name}")
+    logger.info("Received models.released event for %s/%s", bucket, object_name)
     endpoint = os.environ.get("MINIO_ENDPOINT")
     if not endpoint:
-        print("MINIO_ENDPOINT not set, cannot download new model")
+        logger.warning("MINIO_ENDPOINT not set, cannot download new model")
         return
 
     access_key = os.environ.get("MINIO_ACCESS_KEY", "minioadmin")
@@ -253,7 +255,7 @@ def _handle_model_released(event: dict) -> None:
     local_path = os.path.join(MODELS_DIRECTORY, object_name)
     os.makedirs(MODELS_DIRECTORY, exist_ok=True)
     client.fget_object(bucket, object_name, local_path)
-    print(f"Downloaded model from MinIO: {bucket}/{object_name}")
+    logger.info("Downloaded model from MinIO: %s/%s", bucket, object_name)
 
     bundle: dict = joblib.load(local_path)
     _apply_model_to_state(
@@ -264,14 +266,14 @@ def _handle_model_released(event: dict) -> None:
         feature_names=bundle["feature_names"],
         feature_caps=bundle.get("feature_caps", {}),
     )
-    print(f"Model hotswapped to version {bundle['version']}")
+    logger.info("Model hotswapped to version %s", bundle['version'])
 
 
 def _start_kafka_consumer() -> threading.Thread | None:
     bootstrap_servers = os.environ.get("KAFKA_BOOTSTRAP_SERVERS")
     topic = os.environ.get("KAFKA_MODELS_RELEASED_TOPIC", "models.released")
     if not bootstrap_servers:
-        print("KAFKA_BOOTSTRAP_SERVERS not set, model hotswap via Kafka disabled")
+        logger.info("KAFKA_BOOTSTRAP_SERVERS not set, model hotswap via Kafka disabled")
         return None
 
     def consume() -> None:
@@ -283,7 +285,7 @@ def _start_kafka_consumer() -> threading.Thread | None:
             auto_offset_reset="latest",
             enable_auto_commit=True,
         )
-        print(f"Kafka consumer started, listening on '{topic}'")
+        logger.info("Kafka consumer started, listening on '%s'", topic)
         for message in consumer:
             try:
                 _handle_model_released(message.value)
@@ -406,14 +408,20 @@ def score(request: FraudPredictionRequest) -> FraudPredictionResponse:
             else raw_probability
         )
 
+        risk_level = _find_risk_level(fraud_probability, threshold)
+
         response = FraudPredictionResponse(
             transaction_id=request.transaction_id,
             fraud_probability=fraud_probability,
-            risk_level=_find_risk_level(fraud_probability, threshold),
+            risk_level=risk_level,
             model_version=version,
             explainability=_build_explainability(
                 request, feature_vector, model, feature_names, explainer,
             ),
+        )
+        logger.info(
+            "Scored transaction %s | riskLevel: %s | fraudProbability: %.4f | modelVersion: %s",
+            request.transaction_id, risk_level.value, fraud_probability, version,
         )
         return response
     except PredictionException:
@@ -423,6 +431,10 @@ def score(request: FraudPredictionRequest) -> FraudPredictionResponse:
         raise PredictionException(f"Scoring failed: {str(exception)}")
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    )
     host = os.environ.get("HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", "8083"))
     uvicorn.run("app:app", host=host, port=port, reload=False)

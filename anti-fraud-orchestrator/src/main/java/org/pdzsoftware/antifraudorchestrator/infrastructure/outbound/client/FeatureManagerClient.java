@@ -1,5 +1,6 @@
 package org.pdzsoftware.antifraudorchestrator.infrastructure.outbound.client;
 
+import lombok.extern.slf4j.Slf4j;
 import org.pdzsoftware.antifraudorchestrator.infrastructure.outbound.client.dto.FraudFeatureRequest;
 import org.pdzsoftware.antifraudorchestrator.infrastructure.outbound.client.dto.FraudFeatureResponse;
 import org.pdzsoftware.antifraudorchestrator.infrastructure.outbound.client.dto.PersistTransactionRequest;
@@ -13,6 +14,7 @@ import org.springframework.web.client.RestClientException;
 
 import java.util.Objects;
 
+@Slf4j
 @Component
 public class FeatureManagerClient {
 	private static final String FRAUD_FEATURES_ENDPOINT = "/api/v1/fraud-features";
@@ -36,6 +38,7 @@ public class FeatureManagerClient {
 
 			return Objects.requireNonNull(response, "Feature Manager returned an empty response body");
 		} catch (RestClientException | NullPointerException exception) {
+			log.error("Failed to fetch fraud features for transaction {}", message.transactionId(), exception);
 			throw new FeatureManagerClientException("Failed to fetch fraud features from Feature Manager", exception);
 		}
 	}
@@ -49,6 +52,7 @@ public class FeatureManagerClient {
 					.retrieve()
 					.toBodilessEntity();
 		} catch (RestClientException exception) {
+			log.error("Failed to persist transaction {} via Feature Manager", request.transactionId(), exception);
 			throw new FeatureManagerClientException(String.format(
 					"Failed to persist transaction %s via Feature Manager", request.transactionId()), exception);
 		}
