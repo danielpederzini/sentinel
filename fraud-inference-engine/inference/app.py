@@ -1,7 +1,9 @@
 import glob
+import json
 import os
 import sys
 import logging
+import threading
 
 import joblib
 import lightgbm as lgb
@@ -11,6 +13,7 @@ import uvicorn
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from kafka import KafkaConsumer
 from minio import Minio
 from sklearn.isotonic import IsotonicRegression
 from http import HTTPStatus
@@ -34,6 +37,7 @@ MODELS_DIRECTORY = os.environ.get(
 )
 
 _state: dict = {}
+_state_lock = threading.Lock()
 _error_logger = ErrorLogger()
 
 
@@ -206,24 +210,101 @@ def _build_explainability(
     }
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    try:
-        _download_models_from_minio(MODELS_DIRECTORY)
-        model, calibrator, metrics, version, feature_names, feature_caps = _load_latest_model(MODELS_DIRECTORY)
+def _apply_model_to_state(
+    model: lgb.LGBMClassifier,
+    calibrator: IsotonicRegression,
+    metrics: dict,
+    version: str,
+    feature_names: list[str],
+    feature_caps: dict[str, float],
+) -> None:
+    _validate_model_feature_contract(feature_names)
+    explainer = shap.TreeExplainer(model)
+    with _state_lock:
         _state["model"] = model
         _state["calibrator"] = calibrator
         _state["threshold"] = metrics["threshold"]
         _state["version"] = version
         _state["feature_names"] = feature_names
         _state["feature_caps"] = feature_caps
-        _validate_model_feature_contract(feature_names)
-        _state["explainer"] = shap.TreeExplainer(model)
-        caps_info = ", ".join(f"{k}={v:.2f}" for k, v in feature_caps.items()) if feature_caps else "none"
-        print(f"Loaded LightGBM model version {version} with threshold {_state['threshold']:.4f}, caps: {caps_info}")
+        _state["explainer"] = explainer
+    caps_info = ", ".join(f"{k}={v:.2f}" for k, v in feature_caps.items()) if feature_caps else "none"
+    print(f"Loaded LightGBM model version {version} with threshold {metrics['threshold']:.4f}, caps: {caps_info}")
+
+
+def _handle_model_released(event: dict) -> None:
+    object_name = event.get("object_name", "")
+    bucket = event.get("bucket", os.environ.get("MINIO_BUCKET", "models"))
+    if not object_name:
+        print("Received models.released event with no object_name, skipping")
+        return
+
+    print(f"Received models.released event for {bucket}/{object_name}")
+    endpoint = os.environ.get("MINIO_ENDPOINT")
+    if not endpoint:
+        print("MINIO_ENDPOINT not set, cannot download new model")
+        return
+
+    access_key = os.environ.get("MINIO_ACCESS_KEY", "minioadmin")
+    secret_key = os.environ.get("MINIO_SECRET_KEY", "minioadmin")
+    use_ssl = os.environ.get("MINIO_USE_SSL", "false").lower() == "true"
+
+    client = Minio(endpoint, access_key=access_key, secret_key=secret_key, secure=use_ssl)
+    local_path = os.path.join(MODELS_DIRECTORY, object_name)
+    os.makedirs(MODELS_DIRECTORY, exist_ok=True)
+    client.fget_object(bucket, object_name, local_path)
+    print(f"Downloaded model from MinIO: {bucket}/{object_name}")
+
+    bundle: dict = joblib.load(local_path)
+    _apply_model_to_state(
+        model=bundle["model"],
+        calibrator=bundle["calibrator"],
+        metrics=bundle["metrics"],
+        version=bundle["version"],
+        feature_names=bundle["feature_names"],
+        feature_caps=bundle.get("feature_caps", {}),
+    )
+    print(f"Model hotswapped to version {bundle['version']}")
+
+
+def _start_kafka_consumer() -> threading.Thread | None:
+    bootstrap_servers = os.environ.get("KAFKA_BOOTSTRAP_SERVERS")
+    topic = os.environ.get("KAFKA_MODELS_RELEASED_TOPIC", "models.released")
+    if not bootstrap_servers:
+        print("KAFKA_BOOTSTRAP_SERVERS not set, model hotswap via Kafka disabled")
+        return None
+
+    def consume() -> None:
+        consumer = KafkaConsumer(
+            topic,
+            bootstrap_servers=bootstrap_servers,
+            value_deserializer=lambda v: json.loads(v.decode("utf-8")),
+            group_id="fraud-inference-engine",
+            auto_offset_reset="latest",
+            enable_auto_commit=True,
+        )
+        print(f"Kafka consumer started, listening on '{topic}'")
+        for message in consumer:
+            try:
+                _handle_model_released(message.value)
+            except Exception as exception:
+                _error_logger.error("Failed to hotswap model from Kafka event", exception)
+
+    thread = threading.Thread(target=consume, daemon=True)
+    thread.start()
+    return thread
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        _download_models_from_minio(MODELS_DIRECTORY)
+        model, calibrator, metrics, version, feature_names, feature_caps = _load_latest_model(MODELS_DIRECTORY)
+        _apply_model_to_state(model, calibrator, metrics, version, feature_names, feature_caps)
     except ModelLoadException as exception:
         _error_logger.error("Model loading failed during startup", exception)
         raise
+    consumer_thread = _start_kafka_consumer()
     yield
     _state.clear()
 
@@ -298,11 +379,17 @@ async def handle_generic_exception(request: Request, exception: Exception):
 @app.post("/transaction/score", response_model=FraudPredictionResponse)
 def score(request: FraudPredictionRequest) -> FraudPredictionResponse:
     try:
-        if "model" not in _state:
-            raise PredictionException("Model is not loaded, service is unavailable")
+        with _state_lock:
+            if "model" not in _state:
+                raise PredictionException("Model is not loaded, service is unavailable")
+            model: lgb.LGBMClassifier = _state["model"]
+            calibrator: IsotonicRegression | None = _state["calibrator"]
+            threshold: float = _state["threshold"]
+            version: str = _state["version"]
+            feature_names: list[str] = _state["feature_names"]
+            feature_caps: dict[str, float] = _state.get("feature_caps", {})
+            explainer: shap.TreeExplainer = _state["explainer"]
 
-        feature_names: list[str] = _state["feature_names"]
-        feature_caps: dict[str, float] = _state.get("feature_caps", {})
         feature_values = _build_feature_values(request, feature_caps)
         missing_features = [feature for feature in feature_names if feature not in feature_values]
         if missing_features:
@@ -311,10 +398,8 @@ def score(request: FraudPredictionRequest) -> FraudPredictionResponse:
             )
         feature_vector = np.array([[float(feature_values[f]) for f in feature_names]])
 
-        model: lgb.LGBMClassifier = _state["model"]
         raw_probability: float = float(model.predict_proba(feature_vector)[0, 1])
 
-        calibrator: IsotonicRegression | None = _state["calibrator"]
         fraud_probability = (
             float(calibrator.predict([raw_probability])[0])
             if calibrator is not None
@@ -324,10 +409,10 @@ def score(request: FraudPredictionRequest) -> FraudPredictionResponse:
         response = FraudPredictionResponse(
             transaction_id=request.transaction_id,
             fraud_probability=fraud_probability,
-            risk_level=_find_risk_level(fraud_probability, _state["threshold"]),
-            model_version=_state["version"],
+            risk_level=_find_risk_level(fraud_probability, threshold),
+            model_version=version,
             explainability=_build_explainability(
-                request, feature_vector, model, feature_names, _state["explainer"],
+                request, feature_vector, model, feature_names, explainer,
             ),
         )
         return response
