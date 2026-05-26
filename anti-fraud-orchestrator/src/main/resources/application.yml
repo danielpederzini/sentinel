@@ -5,6 +5,15 @@ spring:
   application:
     name: anti-fraud-orchestrator
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  metrics:
+    tags:
+      application: anti-fraud-orchestrator
+
 app:
   kafka:
     consumer:

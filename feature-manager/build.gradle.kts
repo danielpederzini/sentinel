@@ -30,6 +30,8 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-security")
 	implementation("org.springframework.boot:spring-boot-starter-validation")
 	implementation("org.springframework.boot:spring-boot-starter-webmvc")
+	implementation("org.springframework.boot:spring-boot-starter-actuator")
+	implementation("io.micrometer:micrometer-registry-prometheus")
 	implementation("org.springframework.boot:spring-boot-starter-cache")
 	implementation("com.github.ben-manes.caffeine:caffeine:$caffeineVersion")
 	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:$springDocVersion")

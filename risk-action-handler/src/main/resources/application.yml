@@ -16,6 +16,15 @@ spring:
           starttls:
             enable: true
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  metrics:
+    tags:
+      application: risk-action-handler
+
 app:
   kafka:
     consumer:

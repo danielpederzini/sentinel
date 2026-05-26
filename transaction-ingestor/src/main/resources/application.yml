@@ -2,6 +2,15 @@ spring:
   application:
     name: transaction-ingestor
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  metrics:
+    tags:
+      application: transaction-ingestor
+
 app:
   kafka:
     producer:

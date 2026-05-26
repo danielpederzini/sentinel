@@ -13,6 +13,7 @@ import uvicorn
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from prometheus_fastapi_instrumentator import Instrumentator
 from kafka import KafkaConsumer
 from minio import Minio
 from sklearn.isotonic import IsotonicRegression
@@ -311,6 +312,11 @@ async def lifespan(app: FastAPI):
     _state.clear()
 
 app = FastAPI(title="Sentinel Fraud Detection", lifespan=lifespan)
+
+Instrumentator(
+    should_group_status_codes=False,
+    excluded_handlers=["/metrics"],
+).instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 
 
 @app.exception_handler(ModelLoadException)
