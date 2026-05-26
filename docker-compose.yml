@@ -93,6 +93,20 @@ services:
       retries: 10
       start_period: 10s
 
+  mongodb:
+    image: mongo:7
+    container_name: sentinel-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   minio:
     image: minio/minio:latest
     container_name: sentinel-minio
@@ -193,11 +207,14 @@ services:
     depends_on:
       kafka-init:
         condition: service_completed_successfully
+      mongodb:
+        condition: service_healthy
     ports:
       - "8084:8084"
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       KAFKA_TRANSACTIONS_SCORED_TOPIC: transactions.scored
+      MONGODB_URI: mongodb://mongodb:27017/risk-action-handler
       LLM_API_KEY: ${GROQ_API_KEY}
       EMAIL_HOST: ${EMAIL_HOST}
       EMAIL_PORT: ${EMAIL_PORT}
@@ -223,4 +240,5 @@ volumes:
   kafka_data:
   redis_data:
   postgres_data:
+  mongodb_data:
   minio_data:

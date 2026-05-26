@@ -32,3 +32,9 @@ app:
       model: ${LLM_MODEL:llama-3.1-8b-instant}
       temperature: ${LLM_TEMPERATURE:0.2}
       max-completion-tokens: ${LLM_MAX_COMPLETION_TOKENS:512}
+  notification:
+    scheduler:
+      max-attempts: ${NOTIFICATION_MAX_ATTEMPTS:5}
+      base-delay-seconds: ${NOTIFICATION_BASE_DELAY_SECONDS:30}
+      batch-size: ${NOTIFICATION_BATCH_SIZE:50}
+      poll-interval-ms: ${NOTIFICATION_POLL_INTERVAL_MS:30000}

@@ -5,7 +5,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.pdzsoftware.riskactionhandler.application.usecase.NotifyRiskUseCase;
+import org.pdzsoftware.riskactionhandler.application.usecase.PersistNotificationTaskUseCase;
 import org.pdzsoftware.riskactionhandler.support.TestFixtures;
 
 import static org.mockito.Mockito.verify;
@@ -15,23 +15,23 @@ import static org.mockito.Mockito.verifyNoInteractions;
 class TransactionConsumerTest {
 
     @Mock
-    private NotifyRiskUseCase notifyRiskUseCase;
+    private PersistNotificationTaskUseCase persistNotificationTaskUseCase;
 
     @InjectMocks
     private TransactionConsumer transactionConsumer;
 
     @Test
-    void consume_shouldNotifyRisk_whenRiskLevelIsHigh() {
+    void consume_shouldPersistTask_whenRiskLevelIsHigh() {
         var message = TestFixtures.highRiskTransaction();
         transactionConsumer.consume(message);
 
-        verify(notifyRiskUseCase).execute(message);
+        verify(persistNotificationTaskUseCase).execute(message);
     }
 
     @Test
-    void consume_shouldSkipNotification_whenRiskLevelIsNotHigh() {
+    void consume_shouldSkipPersistence_whenRiskLevelIsNotHigh() {
         transactionConsumer.consume(TestFixtures.lowRiskTransaction());
 
-        verifyNoInteractions(notifyRiskUseCase);
+        verifyNoInteractions(persistNotificationTaskUseCase);
     }
 }
