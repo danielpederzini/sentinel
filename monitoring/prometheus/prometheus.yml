@@ -1,0 +1,29 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "transaction-ingestor"
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["transaction-ingestor:8080"]
+
+  - job_name: "anti-fraud-orchestrator"
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["anti-fraud-orchestrator:8081"]
+
+  - job_name: "feature-manager"
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["feature-manager:8082"]
+
+  - job_name: "fraud-inference-engine"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["fraud-inference-engine:8083"]
+
+  - job_name: "risk-action-handler"
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["risk-action-handler:8084"]
