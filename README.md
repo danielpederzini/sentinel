@@ -4,8 +4,6 @@ Real-time fraud detection platform that combines event-driven microservice archi
 
 The system ingests raw transactions, enriches them with behavioral features, runs them through a calibrated LightGBM model, and takes automated risk-based actions, all within a single Kafka-driven pipeline.
 
-![Architecture Drawing](docs/sentinel.svg)
-
 ---
 
 ## Table of Contents
@@ -44,27 +42,7 @@ The goal is not just to detect fraud, but to demonstrate how ML models integrate
 
 Sentinel is composed of five microservices connected by Apache Kafka topics. Each service owns a single responsibility and communicates asynchronously through events:
 
-```
-                                    Kafka: transactions.created
-Transaction Ingestor ──────────────────────────────────────────────> Anti-Fraud Orchestrator
-       (REST API)                                                          |
-                                                                    HTTP   |   HTTP
-                                                                   ┌───────┘───────┐
-                                                                   v               v
-                                                           Feature Manager    Fraud Inference Engine
-                                                          (PostgreSQL/Redis)    (LightGBM + SHAP)
-                                                                   |               |
-                                                                   └───────┐───────┘
-                                                                           |
-                                                                           v
-                                                            Anti-Fraud Orchestrator
-                                                                           |
-                                                   Kafka: transactions.scored
-                                                                           |
-                                                                           v
-                                                              Risk Action Handler
-                                                            (LLM Alerts + Email)
-```
+![Architecture Drawing](docs/sentinel.svg)
 
 **Data flow:**
 1. A transaction arrives via REST at the **Transaction Ingestor** and is published to Kafka
