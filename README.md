@@ -4,7 +4,7 @@ Real-time fraud detection platform that combines event-driven microservice archi
 
 The system ingests raw transactions, enriches them with behavioral features, runs them through a calibrated LightGBM model, and takes automated risk-based actions, all within a single Kafka-driven pipeline.
 
-> **Note:** An architecture diagram is available at the bottom of this document.
+![Architecture Drawing](docs/sentinel.svg)
 
 ---
 
@@ -303,9 +303,3 @@ The Risk Action Handler requires the following environment variables for full fu
 | `EMAIL_USERNAME` | SMTP authentication username |
 | `EMAIL_PASSWORD` | SMTP authentication password |
 | `DESTINATION_EMAIL` | Recipient for fraud alert emails |
-
----
-
-## Architecture Diagram
-
-<!-- Architecture diagram will be added here -->
