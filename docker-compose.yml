@@ -214,7 +214,7 @@ services:
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       KAFKA_TRANSACTIONS_SCORED_TOPIC: transactions.scored
-      MONGODB_URI: mongodb://mongodb:27017/risk-action-handler
+      SPRING_DATA_MONGODB_URI: mongodb://mongodb:27017/risk-action-handler
       LLM_API_KEY: ${GROQ_API_KEY}
       EMAIL_HOST: ${EMAIL_HOST}
       EMAIL_PORT: ${EMAIL_PORT}
