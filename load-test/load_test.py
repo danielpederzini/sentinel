@@ -27,12 +27,8 @@ from datetime import datetime, timezone
 import aiohttp
 from tqdm import tqdm
 
-MERCHANT_CATEGORIES = [
-    "GROCERY", "RESTAURANT", "ENTERTAINMENT", "TRAVEL",
-    "HEALTHCARE", "EDUCATION", "UTILITIES", "OTHER",
-]
-
-CARD_TYPES = ["CREDIT", "DEBIT", "CREDIT_AND_DEBIT", "OTHER"]
+# ID ranges matching the V1 migration seed data
+NUM_MERCHANTS = 150
 
 COUNTRIES = [
     "US", "BR", "AR", "DE", "ES", "SE", "NL", "GB", "CA", "JP",
@@ -46,17 +42,25 @@ COUNTRY_WEIGHTS = [
 
 
 def generate_user_pool(num_users: int) -> list[dict]:
-    """Pre-generate stable user profiles for consistent, low-risk transactions."""
+    """Pre-generate user profiles using IDs from the V1 migration seed data.
+
+    The migration creates:
+      - users:    user-000001    .. user-100000  (1-based, 6-digit pad)
+      - cards:    card-000001    .. card-100000  (1:1 with users)
+      - devices:  device-000001  .. device-100000 (1:1 with users)
+      - merchants: merchant-0001 .. merchant-0150 (150 total, 4-digit pad)
+    """
     users = []
-    for i in range(num_users):
+    for i in range(1, num_users + 1):
         country = random.choices(COUNTRIES, weights=COUNTRY_WEIGHTS, k=1)[0]
+        merchant_index = random.randint(1, NUM_MERCHANTS)
         users.append({
             "user_id": f"user-{i:06d}",
             "card_id": f"card-{i:06d}",
-            "merchant_id": f"merchant-{random.randint(0, 999):04d}",
+            "merchant_id": f"merchant-{merchant_index:04d}",
             "device_id": f"device-{i:06d}",
             "country_code": country,
-            "ip_address": f"10.{(i >> 16) & 0xFF}.{(i >> 8) & 0xFF}.{i & 0xFF}",
+            "ip_address": f"{random.randint(1, 223)}.{random.randint(0, 255)}.{random.randint(0, 255)}.{random.randint(1, 254)}",
             "base_amount": round(random.lognormvariate(3.5, 0.7), 2),
         })
     return users
