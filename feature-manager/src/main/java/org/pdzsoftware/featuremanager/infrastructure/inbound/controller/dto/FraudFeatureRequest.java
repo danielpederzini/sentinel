@@ -12,15 +12,15 @@ import java.time.LocalDateTime;
 
 @Schema(description = "Transaction details used as input for fraud feature calculation")
 public record FraudFeatureRequest(
-        @Schema(description = "Unique transaction identifier", example = "txn-1029384756")
+        @Schema(description = "Unique transaction identifier", example = "tx-000042")
         @NotBlank String transactionId,
-        @Schema(description = "Identifier of the user", example = "user-42")
+        @Schema(description = "Identifier of the user", example = "user-000042")
         @NotBlank String userId,
-        @Schema(description = "Identifier of the card", example = "card-9981")
+        @Schema(description = "Identifier of the card", example = "card-000042")
         @NotBlank String cardId,
-        @Schema(description = "Identifier of the merchant", example = "merchant-512")
+        @Schema(description = "Identifier of the merchant", example = "merchant-0042")
         @NotBlank String merchantId,
-        @Schema(description = "Identifier of the device, when available", example = "device-7f3a")
+        @Schema(description = "Identifier of the device, when available", example = "device-000042")
         String deviceId,
         @Schema(description = "Transaction amount; must be positive", example = "149.90")
         @NotNull @Positive BigDecimal amount,
@@ -28,7 +28,7 @@ public record FraudFeatureRequest(
         @NotNull CountryCode countryCode,
         @Schema(description = "Originating IP address, when available", example = "203.0.113.7")
         String ipAddress,
-        @Schema(description = "Transaction creation timestamp; must not be in the future", example = "2026-05-29T14:30:00")
+        @Schema(description = "Transaction creation timestamp; must not be in the future", example = "2026-05-28T14:30:00")
         @NotNull @PastOrPresent LocalDateTime creationDateTime
 ) {
 }

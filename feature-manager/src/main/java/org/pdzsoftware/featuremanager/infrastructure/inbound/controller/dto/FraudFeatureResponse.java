@@ -8,13 +8,13 @@ import java.math.BigDecimal;
 @Builder
 @Schema(description = "The full set of fraud features computed for a transaction")
 public record FraudFeatureResponse(
-        @Schema(description = "Unique transaction identifier", example = "txn-1029384756")
+        @Schema(description = "Unique transaction identifier", example = "tx-000042")
         String transactionId,
         @Schema(description = "Transaction amount", example = "149.90")
         BigDecimal amount,
         @Schema(description = "User's historical average transaction amount", example = "82.50")
         BigDecimal userAverageAmount,
-        @Schema(description = "Total number of historical transactions for the user", example = "1284")
+        @Schema(description = "Total number of historical transactions for the user", example = "37")
         long userHistoricalTransactionCount,
         @Schema(description = "Number of transactions by the user in the last 5 minutes", example = "2")
         long userTransactionCount5Min,
@@ -42,35 +42,35 @@ public record FraudFeatureResponse(
         long userAccountAgeDays,
         @Schema(description = "Day of week the transaction occurred (1=Monday)", example = "4")
         int dayOfWeek,
-        @Schema(description = "Encoded merchant category", example = "12")
+        @Schema(description = "Encoded merchant category", example = "3")
         int merchantCategory,
         @Schema(description = "Encoded card type", example = "1")
         int cardType,
         @Schema(description = "Distinct merchants transacted with in the last hour", example = "3")
         long distinctMerchantCount1Hour,
-        @Schema(description = "Natural log of the transaction amount", example = "5.01")
+        @Schema(description = "Natural log of the transaction amount", example = "5.02")
         double logAmount,
         @Schema(description = "Natural log of seconds since last transaction", example = "5.83")
         double logSecondsSinceLastTransaction,
         @Schema(description = "Natural log of the 1-hour amount velocity", example = "6.07")
         double logVelocity1Hour,
-        @Schema(description = "Amount multiplied by merchant risk score", example = "34.47")
+        @Schema(description = "Amount multiplied by merchant risk score", example = "34.48")
         double amountTimesMerchantRisk,
         @Schema(description = "Product of merchant and IP risk scores", example = "0.023")
         double riskScoreProduct,
-        @Schema(description = "Combined IP and device risk signal", example = "0.10")
+        @Schema(description = "Combined IP and device risk signal (zero when the device is trusted)", example = "0.0")
         double ipDeviceRisk,
         @Schema(description = "Combined country-mismatch and IP risk signal", example = "0.0")
         double countryIpRisk,
-        @Schema(description = "Interaction between velocity and amount", example = "642.30")
+        @Schema(description = "Interaction between velocity and amount", example = "7.81")
         double velocityAmountInteraction,
-        @Schema(description = "Interaction between recency and velocity", example = "1.26")
+        @Schema(description = "Interaction between recency and velocity", example = "0.0205")
         double recencyVelocity,
-        @Schema(description = "Deviation of amount from the user's typical spend", example = "67.40")
+        @Schema(description = "Deviation of the amount-to-average ratio from 1", example = "0.82")
         double amountDeviation,
         @Schema(description = "Whether the transaction occurred at night", example = "false")
         boolean isNight,
-        @Schema(description = "Intensity measure of recent transaction velocity", example = "0.85")
+        @Schema(description = "Intensity measure of recent transaction velocity", example = "61.43")
         double velocityIntensity
 ) {
 }
