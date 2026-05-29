@@ -312,7 +312,13 @@ async def lifespan(app: FastAPI):
     yield
     _state.clear()
 
-app = FastAPI(title="Sentinel Fraud Detection", lifespan=lifespan)
+app = FastAPI(
+    title="Fraud Inference Engine API",
+    description="Serves the LightGBM fraud model for the Sentinel platform. The scoring endpoint requires a "
+                "service-to-service JWT bearer token issued by the Anti-Fraud Orchestrator.",
+    version="0.0.1",
+    lifespan=lifespan,
+)
 
 Instrumentator(
     should_group_status_codes=False,
@@ -385,7 +391,19 @@ async def handle_generic_exception(request: Request, exception: Exception):
     )
 
 
-@app.post("/transaction/score", response_model=FraudPredictionResponse)
+@app.post(
+    "/transaction/score",
+    response_model=FraudPredictionResponse,
+    tags=["Scoring"],
+    summary="Score a transaction",
+    description="Scores a transaction with the active LightGBM model, returning the fraud probability, "
+                "risk level, model version, and SHAP-based explainability.",
+    responses={
+        401: {"model": ErrorResponse, "description": "Missing or invalid JWT bearer token"},
+        422: {"model": ErrorResponse, "description": "Request validation failed"},
+        503: {"model": ErrorResponse, "description": "Model is not loaded"},
+    },
+)
 def score(request: FraudPredictionRequest, _: None = Depends(verify_token)) -> FraudPredictionResponse:
     try:
         with _state_lock:

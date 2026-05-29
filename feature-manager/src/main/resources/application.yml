@@ -39,6 +39,12 @@ spring:
         jwt:
           jwk-set-uri: ${JWKS_URI:http://localhost:8081/.well-known/jwks.json}
 
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
 app:
   service-auth:
     issuer: ${SERVICE_AUTH_ISSUER:anti-fraud-orchestrator}
