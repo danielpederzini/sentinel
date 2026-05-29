@@ -18,9 +18,11 @@ repositories {
 }
 
 extra["springCloudVersion"] = "2025.1.1"
+val springDocVersion = "3.0.2"
 
 dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-kafka")
+	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:$springDocVersion")
 	implementation("org.springframework.boot:spring-boot-starter-restclient")
 	implementation("org.springframework.boot:spring-boot-starter-webmvc")
 	implementation("org.springframework.boot:spring-boot-starter-actuator")
