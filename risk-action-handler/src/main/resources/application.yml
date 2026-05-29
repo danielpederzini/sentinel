@@ -32,6 +32,11 @@ app:
       transactions-scored-topic: ${KAFKA_TRANSACTIONS_SCORED_TOPIC:transactions.scored}
       consumer-group-id: ${KAFKA_CONSUMER_GROUP_ID:risk-action-handler}
       auto-offset-reset: ${KAFKA_AUTO_OFFSET_RESET:earliest}
+      retry:
+        max-attempts: ${KAFKA_RETRY_MAX_ATTEMPTS:3}
+        initial-interval-ms: ${KAFKA_RETRY_INITIAL_INTERVAL_MS:1000}
+        multiplier: ${KAFKA_RETRY_MULTIPLIER:2.0}
+        max-interval-ms: ${KAFKA_RETRY_MAX_INTERVAL_MS:10000}
   clients:
     email:
       destination-email: ${DESTINATION_EMAIL:}

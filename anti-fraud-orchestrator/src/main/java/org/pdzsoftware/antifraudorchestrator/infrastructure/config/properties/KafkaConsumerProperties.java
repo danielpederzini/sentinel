@@ -14,4 +14,14 @@ public class KafkaConsumerProperties {
 	private String transactionsCreatedTopic;
 	private String consumerGroupId;
 	private String autoOffsetReset = "earliest";
+	private Retry retry = new Retry();
+
+	@Getter
+	@Setter
+	public static class Retry {
+		private int maxAttempts = 3;
+		private long initialIntervalMs = 1000;
+		private double multiplier = 2.0;
+		private long maxIntervalMs = 10000;
+	}
 }
