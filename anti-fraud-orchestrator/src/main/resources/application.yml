@@ -36,3 +36,7 @@ app:
       base-url: ${FEATURE_MANAGER_BASE_URL:http://localhost:8082}
     inference-engine:
       base-url: ${INFERENCE_ENGINE_BASE_URL:http://localhost:8083}
+  service-auth:
+    issuer: ${SERVICE_AUTH_ISSUER:anti-fraud-orchestrator}
+    audience: ${SERVICE_AUTH_AUDIENCE:sentinel-internal}
+    token-ttl-seconds: ${SERVICE_AUTH_TOKEN_TTL_SECONDS:60}
