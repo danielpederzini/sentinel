@@ -161,6 +161,9 @@ services:
       MINIO_USE_SSL: "false"
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       KAFKA_MODELS_RELEASED_TOPIC: models.released
+      JWKS_URI: http://anti-fraud-orchestrator:8081/.well-known/jwks.json
+      SERVICE_AUTH_ISSUER: anti-fraud-orchestrator
+      SERVICE_AUTH_AUDIENCE: sentinel-internal
 
   feature-manager:
     build:
@@ -180,6 +183,9 @@ services:
       DB_PASSWORD: admin
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      JWKS_URI: http://anti-fraud-orchestrator:8081/.well-known/jwks.json
+      SERVICE_AUTH_ISSUER: anti-fraud-orchestrator
+      SERVICE_AUTH_AUDIENCE: sentinel-internal
 
   anti-fraud-orchestrator:
     build:
@@ -200,6 +206,8 @@ services:
       KAFKA_TRANSACTIONS_CREATED_TOPIC: transactions.created
       FEATURE_MANAGER_BASE_URL: http://feature-manager:8082
       INFERENCE_ENGINE_BASE_URL: http://fraud-inference-engine:8083
+      SERVICE_AUTH_ISSUER: anti-fraud-orchestrator
+      SERVICE_AUTH_AUDIENCE: sentinel-internal
 
   risk-action-handler:
     build:

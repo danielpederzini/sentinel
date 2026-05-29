@@ -9,3 +9,4 @@ shap==0.46.0
 minio==7.2.15
 kafka-python-ng==2.2.3
 prometheus-fastapi-instrumentator==7.0.2
+pyjwt[crypto]==2.9.0

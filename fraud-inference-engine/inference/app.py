@@ -11,7 +11,7 @@ import numpy as np
 import shap
 import uvicorn
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 from kafka import KafkaConsumer
@@ -20,6 +20,7 @@ from sklearn.isotonic import IsotonicRegression
 from http import HTTPStatus
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from auth import verify_token
 from shared.schemas import (
     FraudPredictionRequest,
     FraudPredictionResponse,
@@ -385,7 +386,7 @@ async def handle_generic_exception(request: Request, exception: Exception):
 
 
 @app.post("/transaction/score", response_model=FraudPredictionResponse)
-def score(request: FraudPredictionRequest) -> FraudPredictionResponse:
+def score(request: FraudPredictionRequest, _: None = Depends(verify_token)) -> FraudPredictionResponse:
     try:
         with _state_lock:
             if "model" not in _state:

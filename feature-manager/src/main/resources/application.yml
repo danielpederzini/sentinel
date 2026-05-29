@@ -33,6 +33,16 @@ spring:
         jdbc:
           time_zone: UTC
     open-in-view: false
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${JWKS_URI:http://localhost:8081/.well-known/jwks.json}
+
+app:
+  service-auth:
+    issuer: ${SERVICE_AUTH_ISSUER:anti-fraud-orchestrator}
+    audience: ${SERVICE_AUTH_AUDIENCE:sentinel-internal}
 
 management:
   endpoints:
