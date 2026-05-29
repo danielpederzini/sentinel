@@ -16,11 +16,14 @@ The system ingests raw transactions, enriches them with behavioral features, run
   - [Feature Manager](#feature-manager)
   - [Fraud Inference Engine](#fraud-inference-engine)
   - [Risk Action Handler](#risk-action-handler)
+- [Security](#security)
+- [Resilience & Error Handling](#resilience--error-handling)
 - [ML Pipeline](#ml-pipeline)
   - [Training Pipeline](#training-pipeline)
   - [Feature Engineering](#feature-engineering)
   - [Model Lifecycle](#model-lifecycle)
 - [Infrastructure](#infrastructure)
+- [API Documentation](#api-documentation)
 - [Getting Started](#getting-started)
 - [Architecture Diagram](#architecture-diagram)
 
@@ -52,6 +55,8 @@ Sentinel is composed of five microservices connected by Apache Kafka topics. Eac
 5. The scored transaction is published to Kafka for downstream consumers
 6. The **Risk Action Handler** persists the result, generates an LLM-powered explanation, and sends email alerts for high-risk transactions
 
+Internal synchronous calls (Orchestrator → Feature Manager / Inference Engine) are authenticated with short-lived **RS256 JWTs** (see [Security](#security)). Kafka consumers retry with exponential backoff and route poison messages to **dead-letter topics** (see [Resilience & Error Handling](#resilience--error-handling)).
+
 ---
 
 ## Services
@@ -75,8 +80,9 @@ Sentinel is composed of five microservices connected by Apache Kafka topics. Eac
 |---|---|
 | Stack | Java 26, Spring Boot 4, Spring Kafka, RestClient |
 | Port | `8081` |
-| Kafka Topics | Consumes `transactions.created`, produces `transactions.scored` |
-| Features | Resilience4j circuit breakers, idempotent Kafka producer, feature-to-inference field mapping (`@JsonProperty` camelCase to snake_case) |
+| Kafka Topics | Consumes `transactions.created` (dead-letters to `transactions.created.DLT`), produces `transactions.scored` |
+| Features | Resilience4j circuit breakers, idempotent Kafka producer, consumer retries with exponential backoff + dead-letter routing, feature-to-inference field mapping (`@JsonProperty` camelCase to snake_case) |
+| Auth | Mints short-lived RS256 service JWTs for downstream calls; publishes public keys at `GET /.well-known/jwks.json` |
 
 ### Feature Manager
 
@@ -88,6 +94,7 @@ Sentinel is composed of five microservices connected by Apache Kafka topics. Eac
 | Port | `8082` |
 | Persistence | PostgreSQL (entity data + feature vectors), Redis (velocity windows) |
 | Features | Flyway migrations, Caffeine L1 cache + Redis L2 cache, velocity calculations (5-min/1-hour windows), IP risk scoring, cold-start defaults |
+| Auth | JWT-protected endpoints (OAuth2 resource server validating the orchestrator's RS256 tokens via JWKS) |
 
 **Computed features include:**
 
@@ -111,6 +118,7 @@ Sentinel is composed of five microservices connected by Apache Kafka topics. Eac
 | Port | `8083` |
 | Model | LightGBM binary classifier with isotonic calibration |
 | Features | Feature contract validation at startup, 99th-percentile feature capping, SHAP TreeExplainer for top-k feature contributions, model hot-swap via Kafka (`models.released` topic), MinIO model storage |
+| Auth | JWT-protected scoring endpoint (verifies the orchestrator's RS256 tokens via JWKS using PyJWT) |
 
 **Scoring response example:**
 ```json
@@ -140,8 +148,41 @@ Sentinel is composed of five microservices connected by Apache Kafka topics. Eac
 |---|---|
 | Stack | Java 26, Spring Boot 4, Spring Data MongoDB, Spring Mail |
 | Port | `8084` |
+| Kafka Topics | Consumes `transactions.scored` (dead-letters to `transactions.scored.DLT`) |
 | Persistence | MongoDB (notification outbox) |
-| Features | LLM-powered alert generation (Groq/Llama 3.1), SMTP email notifications, transactional outbox pattern with step-based retries (exponential backoff, max 5 attempts), batch polling |
+| Features | LLM-powered alert generation (Groq/Llama 3.1), SMTP email notifications, consumer retries with exponential backoff + dead-letter routing, transactional outbox pattern with step-based retries (exponential backoff, max 5 attempts), batch polling |
+
+---
+
+## Security
+
+Internal synchronous HTTP calls are authenticated with **RS256 JSON Web Tokens** using a self-contained JWKS flow — no external authorization server required.
+
+- **Issuer** — The Anti-Fraud Orchestrator generates an RSA key pair **in memory at startup**, signs short-lived service tokens (`iss`/`aud`/`exp`), and exposes the public keys at `GET /.well-known/jwks.json`.
+- **Verifiers** — The Feature Manager (Spring OAuth2 resource server) and Fraud Inference Engine (FastAPI + PyJWT) fetch the orchestrator's public key from the JWKS endpoint and validate each token's signature, issuer, and audience. Unauthenticated requests are rejected with `401`.
+- **Key handling** — Keys are ephemeral and rotate on every orchestrator restart; verifiers refresh the JWKS automatically, so no key files or volumes are needed.
+
+Kafka transport and the public transaction-ingestion endpoint are outside this internal-auth boundary.
+
+| Variable | Description | Default |
+|---|---|---|
+| `JWKS_URI` | JWKS endpoint the verifiers fetch public keys from | `http://anti-fraud-orchestrator:8081/.well-known/jwks.json` |
+| `SERVICE_AUTH_ISSUER` | Expected token issuer | `anti-fraud-orchestrator` |
+| `SERVICE_AUTH_AUDIENCE` | Expected token audience | `sentinel-internal` |
+| `SERVICE_AUTH_TOKEN_TTL_SECONDS` | Lifetime of minted tokens (orchestrator) | `60` |
+
+---
+
+## Resilience & Error Handling
+
+Sentinel is built to degrade gracefully and avoid silently dropping events:
+
+- **Idempotent producers** — Kafka producers run with `acks=all` and idempotence enabled to prevent duplicate events.
+- **Circuit breakers** — Resilience4j guards the orchestrator's synchronous calls to the Feature Manager and Inference Engine.
+- **Consumer retries + dead-letter topics** — Kafka listeners retry failed messages with exponential backoff and, once attempts are exhausted, publish the poison message to a dedicated dead-letter topic. Validation errors are treated as non-retryable and dead-lettered immediately.
+  - Anti-Fraud Orchestrator: `transactions.created` → `transactions.created.DLT`
+  - Risk Action Handler: `transactions.scored` → `transactions.scored.DLT`
+- **Transactional outbox** — The Risk Action Handler persists notification work to MongoDB and processes it with step-based retries (exponential backoff, max 5 attempts) before marking a task as dead-lettered, ensuring at-least-once email delivery.
 
 ---
 
@@ -210,7 +251,7 @@ All services are containerized and orchestrated with Docker Compose.
 
 | Component | Purpose |
 |---|---|
-| **Apache Kafka** | Event backbone (`transactions.created`, `transactions.scored`, `models.released`) |
+| **Apache Kafka** | Event backbone (`transactions.created`, `transactions.scored`, `models.released`) plus dead-letter topics (`transactions.created.DLT`, `transactions.scored.DLT`) |
 | **PostgreSQL 16** | Relational storage for users, merchants, cards, transactions, feature vectors, and predictions |
 | **Redis 7** | Velocity window tracking (5-min / 1-hour transaction counts and amounts) |
 | **MongoDB 7** | Notification outbox for resilient email delivery |
@@ -218,6 +259,21 @@ All services are containerized and orchestrated with Docker Compose.
 | **Prometheus** | Metrics collection from all 5 services (Spring Actuator + FastAPI Instrumentator) |
 | **Grafana** | Pre-provisioned dashboards for traffic and service health monitoring |
 | **Kafka UI** | Web interface for topic inspection and message browsing |
+
+---
+
+## API Documentation
+
+Every service that exposes HTTP endpoints ships interactive **OpenAPI / Swagger** documentation with annotated schemas, request/response examples, and documented error responses. Examples in the docs are aligned with the Flyway seed data and the feature-computation formulas.
+
+| Service | Docs URL | Notes |
+|---|---|---|
+| Transaction Ingestor | `http://localhost:8080/swagger-ui.html` | Public `POST /api/v1/transactions` |
+| Anti-Fraud Orchestrator | `http://localhost:8081/swagger-ui.html` | JWKS endpoint |
+| Feature Manager | `http://localhost:8082/swagger-ui.html` | JWT-protected (use the **Authorize** button) |
+| Fraud Inference Engine | `http://localhost:8083/docs` | JWT-protected (use the **Authorize** button) |
+
+The Risk Action Handler is event-driven (Kafka consumer) and exposes no public HTTP API. Raw OpenAPI specs are available at `/v3/api-docs` (Spring services) and `/openapi.json` (inference engine).
 
 ---
 
