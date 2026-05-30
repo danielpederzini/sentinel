@@ -36,7 +36,7 @@ The system ingests raw transactions, enriches them with behavioral features, run
 
 Sentinel exists at the intersection of two disciplines:
 
-- **Backend System Design** — Event-driven microservices communicating over Kafka, with PostgreSQL, Redis, and MongoDB handling different persistence needs. Circuit breakers, idempotent producers, transactional outbox patterns, and multi-layer caching are built into the pipeline.
+- **Backend System Design** — Event-driven microservices communicating over Kafka, with PostgreSQL, Redis, and MongoDB handling different persistence needs. Idempotent producers, transactional outbox patterns, and multi-layer caching are built into the pipeline.
 
 - **Machine Learning Engineering** — A full ML lifecycle from synthetic dataset generation through hyperparameter tuning, isotonic calibration, and SHAP-based explainability, deployed as a real-time inference API with hot-swappable model versioning.
 
@@ -84,7 +84,7 @@ Internal synchronous calls (Orchestrator → Feature Manager / Inference Engine)
 | Stack | Java 26, Spring Boot 4, Spring Kafka, RestClient |
 | Port | `8081` |
 | Kafka Topics | Consumes `transactions.created` (dead-letters to `transactions.created.DLT`), produces `transactions.scored` |
-| Features | Resilience4j circuit breakers, idempotent Kafka producer, consumer retries with exponential backoff + dead-letter routing, feature-to-inference field mapping (`@JsonProperty` camelCase to snake_case) |
+| Features | Idempotent Kafka producer, consumer retries with exponential backoff + dead-letter routing, feature-to-inference field mapping (`@JsonProperty` camelCase to snake_case) |
 | Auth | Mints short-lived RS256 service JWTs for downstream calls; publishes public keys at `GET /.well-known/jwks.json` |
 
 ### Feature Manager
@@ -181,7 +181,6 @@ Kafka transport and the public transaction-ingestion endpoint are outside this i
 Sentinel is built to degrade gracefully and avoid silently dropping events:
 
 - **Idempotent producers** — Kafka producers run with `acks=all` and idempotence enabled to prevent duplicate events.
-- **Circuit breakers** — Resilience4j guards the orchestrator's synchronous calls to the Feature Manager and Inference Engine.
 - **Consumer retries + dead-letter topics** — Kafka listeners retry failed messages with exponential backoff and, once attempts are exhausted, publish the poison message to a dedicated dead-letter topic. Validation errors are treated as non-retryable and dead-lettered immediately.
   - Anti-Fraud Orchestrator: `transactions.created` → `transactions.created.DLT`
   - Risk Action Handler: `transactions.scored` → `transactions.scored.DLT`
