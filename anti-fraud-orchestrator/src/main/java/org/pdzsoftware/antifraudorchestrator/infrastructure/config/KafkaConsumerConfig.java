@@ -1,5 +1,6 @@
 package org.pdzsoftware.antifraudorchestrator.infrastructure.config;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.validation.ConstraintViolationException;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -17,6 +18,7 @@ import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
+import org.springframework.kafka.listener.ConsumerRecordRecoverer;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.DelegatingByTypeSerializer;
@@ -88,8 +90,13 @@ public class KafkaConsumerConfig {
 	@Bean
 	public DefaultErrorHandler kafkaErrorHandler(
 			KafkaTemplate<String, Object> deadLetterKafkaTemplate,
-			KafkaConsumerProperties kafkaConsumerProperties) {
+			KafkaConsumerProperties kafkaConsumerProperties,
+			MeterRegistry meterRegistry) {
 		DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(deadLetterKafkaTemplate);
+		ConsumerRecordRecoverer countingRecoverer = (record, exception) -> {
+			meterRegistry.counter("kafka_dead_letter", "topic", record.topic()).increment();
+			recoverer.accept(record, exception);
+		};
 
 		KafkaConsumerProperties.Retry retry = kafkaConsumerProperties.getRetry();
 		ExponentialBackOffWithMaxRetries backOff = new ExponentialBackOffWithMaxRetries(retry.getMaxAttempts());
@@ -97,7 +104,7 @@ public class KafkaConsumerConfig {
 		backOff.setMultiplier(retry.getMultiplier());
 		backOff.setMaxInterval(retry.getMaxIntervalMs());
 
-		DefaultErrorHandler errorHandler = new DefaultErrorHandler(recoverer, backOff);
+		DefaultErrorHandler errorHandler = new DefaultErrorHandler(countingRecoverer, backOff);
 		errorHandler.addNotRetryableExceptions(
 				MethodArgumentNotValidException.class,
 				ConstraintViolationException.class);

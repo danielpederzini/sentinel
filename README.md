@@ -4,6 +4,9 @@ Real-time fraud detection platform that combines event-driven microservice archi
 
 The system ingests raw transactions, enriches them with behavioral features, runs them through a calibrated LightGBM model, and takes automated risk-based actions, all within a single Kafka-driven pipeline.
 
+![Sentinel Fraud Detection Overview dashboard](docs/dashboard.png)
+*Live fraud-detection dashboard (Grafana): risk-level breakdown, fraud-probability distribution, scoring latency, and end-to-end pipeline health.*
+
 ---
 
 ## Table of Contents
@@ -256,8 +259,8 @@ All services are containerized and orchestrated with Docker Compose.
 | **Redis 7** | Velocity window tracking (5-min / 1-hour transaction counts and amounts) |
 | **MongoDB 7** | Notification outbox for resilient email delivery |
 | **MinIO** | S3-compatible object storage for ML model bundles |
-| **Prometheus** | Metrics collection from all 5 services (Spring Actuator + FastAPI Instrumentator) |
-| **Grafana** | Pre-provisioned dashboards for traffic and service health monitoring |
+| **Prometheus** | Metrics collection from all 5 services, including custom fraud/business metrics (Spring Micrometer + FastAPI / prometheus_client) |
+| **Grafana** | Two pre-provisioned dashboards: **Fraud Detection Overview** (home — fraud rate, score distribution, risk breakdown, pipeline flow) and **System Health** (HTTP/JVM/Kafka ops metrics) |
 | **Kafka UI** | Web interface for topic inspection and message browsing |
 
 ---
@@ -308,6 +311,19 @@ docker compose up kafka kafka-init postgres redis mongodb minio minio-init
 | Prometheus | `http://localhost:9090` |
 | Grafana | `http://localhost:3000` (admin/admin) |
 | MinIO Console | `http://localhost:9001` (minioadmin/minioadmin) |
+
+### Generating Live Traffic
+
+Once the stack is up (with a model loaded), drive synthetic transactions so the dashboards come alive. The generator uses seed-aligned IDs and only the Python standard library:
+
+```bash
+# ~10 transactions/sec for 5 minutes, 15% fraud-like
+python scripts/traffic_generator.py --rate 10 --duration 300 --fraud-ratio 0.15
+```
+
+Then open Grafana at `http://localhost:3000` — the **Fraud Detection Overview** dashboard is the default home page.
+
+> The hero image above lives at `docs/dashboard.png`. To refresh it, run the traffic generator and capture a screenshot of the Fraud Detection Overview dashboard.
 
 ### Training a Model
 

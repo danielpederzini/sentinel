@@ -1,5 +1,7 @@
 package org.pdzsoftware.featuremanager.application.usecase;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.pdzsoftware.featuremanager.infrastructure.inbound.controller.dto.FraudFeatureRequest;
@@ -34,9 +36,11 @@ public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureReques
     private final TransactionService transactionService;
 
     private final FeatureCacheService featureCacheService;
+    private final MeterRegistry meterRegistry;
 
     @Override
     public FraudFeatureResponse execute(FraudFeatureRequest input) {
+        Timer.Sample sample = Timer.start(meterRegistry);
         try {
             UserEntity userEntity = userService.getByIdOrThrow(input.userId());
             MerchantEntity merchantEntity = merchantService.getByIdOrThrow(input.merchantId());
@@ -126,6 +130,11 @@ public class CalculateFraudFeaturesUseCase implements UseCase<FraudFeatureReques
         } catch (RuntimeException exception) {
             throw new FeatureCalculationException(String.format(
                     "Failed to calculate fraud features for transaction %s", input.transactionId()), exception);
+        } finally {
+            sample.stop(Timer.builder("feature_computation_duration_seconds")
+                    .description("Time to compute the full fraud feature vector")
+                    .publishPercentileHistogram()
+                    .register(meterRegistry));
         }
     }
 

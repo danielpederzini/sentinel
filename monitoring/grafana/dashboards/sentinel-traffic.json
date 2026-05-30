@@ -712,7 +712,7 @@
     }
   ],
   "schemaVersion": 39,
-  "tags": ["sentinel", "traffic"],
+  "tags": ["sentinel", "system-health"],
   "templating": {
     "list": [
       {
@@ -733,7 +733,7 @@
   "time": { "from": "now-30m", "to": "now" },
   "timepicker": {},
   "timezone": "",
-  "title": "Sentinel — Service Traffic",
+  "title": "Sentinel — System Health",
   "uid": "sentinel-traffic",
   "version": 1
 }
