@@ -12,7 +12,7 @@ Seed ranges (see feature-manager V1__create_schema_and_seed_mock_data.sql):
   devices   : device-000001 .. device-100000
 
 Usage:
-  python traffic_generator.py --rate 10 --duration 300 --fraud-ratio 0.15
+  python traffic_generator.py --rate 10 --duration 300 --fraud-ratio 0.01
   python traffic_generator.py --rate 5            # run until Ctrl+C
 
 Requires no third-party packages (uses urllib from the standard library).
@@ -56,10 +56,8 @@ def build_transaction(fraud_ratio: float) -> dict:
     }
 
     if is_fraud_like:
-        # Nudge toward higher-risk inputs: large amount, likely untrusted device.
+        # Nudge toward higher-risk inputs: large amount, no trusted device on file.
         transaction["amount"] = round(random.uniform(2000, 9000), 2)
-        if random.random() < 0.6:
-            transaction["deviceId"] = f"device-{random.randint(SEED_DEVICES + 1, SEED_DEVICES + 1000):06d}"
     else:
         transaction["amount"] = round(random.uniform(10, 600), 2)
         if random.random() < 0.8:
@@ -80,7 +78,7 @@ def main() -> int:
     parser.add_argument("--url", default="http://localhost:8080/api/v1/transactions", help="Transaction Ingestor endpoint")
     parser.add_argument("--rate", type=float, default=10.0, help="Transactions per second")
     parser.add_argument("--duration", type=int, default=0, help="Seconds to run (0 = until interrupted)")
-    parser.add_argument("--fraud-ratio", type=float, default=0.15, help="Fraction of fraud-like transactions (0-1)")
+    parser.add_argument("--fraud-ratio", type=float, default=0.01, help="Fraction of fraud-like transactions (0-1)")
     parser.add_argument("--seed", type=int, default=None, help="Optional RNG seed for reproducibility")
     args = parser.parse_args()
 

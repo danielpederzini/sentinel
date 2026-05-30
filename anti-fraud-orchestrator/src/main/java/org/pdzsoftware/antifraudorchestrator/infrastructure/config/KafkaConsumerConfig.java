@@ -21,12 +21,12 @@ import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.listener.ConsumerRecordRecoverer;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.kafka.support.ExponentialBackOffWithMaxRetries;
 import org.springframework.kafka.support.serializer.DelegatingByTypeSerializer;
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JacksonJsonDeserializer;
 import org.springframework.kafka.support.serializer.JacksonJsonSerializer;
 import org.springframework.messaging.handler.annotation.support.MethodArgumentNotValidException;
-import org.springframework.util.backoff.ExponentialBackOffWithMaxRetries;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
