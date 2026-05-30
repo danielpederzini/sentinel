@@ -13,6 +13,7 @@ import org.pdzsoftware.featuremanager.application.service.TrustedDeviceService;
 import org.pdzsoftware.featuremanager.application.service.UserService;
 import org.pdzsoftware.featuremanager.domain.exception.CardNotFoundException;
 import org.pdzsoftware.featuremanager.domain.exception.MerchantNotFoundException;
+import org.pdzsoftware.featuremanager.domain.exception.TrustedDeviceNotFoundException;
 import org.pdzsoftware.featuremanager.domain.exception.UserNotFoundException;
 import org.pdzsoftware.featuremanager.infrastructure.inbound.controller.dto.PersistTransactionRequest;
 import org.pdzsoftware.featuremanager.infrastructure.outbound.persistence.entity.TransactionEntity;
@@ -113,7 +114,7 @@ class PersistTransactionUseCaseTest {
         when(trustedDeviceService.existsById(DEVICE_ID)).thenReturn(false);
 
         assertThatThrownBy(() -> persistTransactionUseCase.execute(request))
-                .isInstanceOf(RuntimeException.class)
+                .isInstanceOf(TrustedDeviceNotFoundException.class)
                 .hasMessageContaining(DEVICE_ID);
     }
 }

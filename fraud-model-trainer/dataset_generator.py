@@ -14,11 +14,10 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-_MERCHANT_CATEGORIES = [
-    "GROCERY", "RESTAURANT", "ENTERTAINMENT", "TRAVEL",
-    "HEALTHCARE", "EDUCATION", "UTILITIES", "OTHER",
-]
-_CARD_TYPES = ["CREDIT", "DEBIT", "CREDIT_AND_DEBIT", "OTHER"]
+from feature_schema import CARD_TYPES, MERCHANT_CATEGORIES, OUTPUT_COLUMNS
+
+_MERCHANT_CATEGORIES = MERCHANT_CATEGORIES
+_CARD_TYPES = CARD_TYPES
 _COUNTRIES = np.array(
     ["US", "BR", "AR", "DE", "ES", "SE", "NL", "GB", "CA", "JP",
      "AU", "MX", "CL", "ZA", "PT", "FR", "IT", "CH", "CN", "IN"],
@@ -36,30 +35,7 @@ _ONE_HOUR = 60 * 60
 _COLD_START_SECONDS = 30 * 24 * 3600
 _COLD_START_AVERAGE_AMOUNT = 100.0
 
-_OUTPUT_COLUMNS = [
-    "transaction_id",
-    "user_id",
-    "amount",
-    "user_average_amount",
-    "user_historical_transaction_count",
-    "user_transaction_count_5min",
-    "user_transaction_count_1hour",
-    "seconds_since_last_transaction",
-    "amount_velocity_1hour",
-    "merchant_risk_score",
-    "is_device_trusted",
-    "has_country_mismatch",
-    "amount_to_average_ratio",
-    "hour_of_day",
-    "ip_risk_score",
-    "card_age_days",
-    "user_account_age_days",
-    "day_of_week",
-    "merchant_category",
-    "card_type",
-    "distinct_merchant_count_1hour",
-    "is_fraud",
-]
+_OUTPUT_COLUMNS = OUTPUT_COLUMNS
 
 
 class UserSegment(Enum):

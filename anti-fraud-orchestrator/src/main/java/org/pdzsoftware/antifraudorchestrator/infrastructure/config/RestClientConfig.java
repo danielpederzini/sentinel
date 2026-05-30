@@ -19,6 +19,9 @@ import org.springframework.web.client.RestClient;
 		ServiceAuthProperties.class
 })
 public class RestClientConfig {
+	private static final int INFERENCE_CONNECT_TIMEOUT_MS = 10_000;
+	private static final int INFERENCE_READ_TIMEOUT_MS = 30_000;
+
 	@Bean
 	public ObjectMapper objectMapper() {
 		return new ObjectMapper();
@@ -45,8 +48,8 @@ public class RestClientConfig {
 	public RestClient inferenceEngineRestClient(RestClient.Builder builder, InferenceEngineClientProperties properties,
 			ClientHttpRequestInterceptor serviceAuthInterceptor) {
 		SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-		requestFactory.setConnectTimeout(10_000);
-		requestFactory.setReadTimeout(30_000);
+		requestFactory.setConnectTimeout(INFERENCE_CONNECT_TIMEOUT_MS);
+		requestFactory.setReadTimeout(INFERENCE_READ_TIMEOUT_MS);
 
 		return builder
 				.baseUrl(properties.getBaseUrl())

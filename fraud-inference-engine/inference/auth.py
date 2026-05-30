@@ -5,6 +5,7 @@ import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWKClient
+from jwt.exceptions import PyJWKClientError, PyJWTError
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,6 @@ def verify_token(credentials: HTTPAuthorizationCredentials | None = Depends(_bea
             issuer=EXPECTED_ISSUER,
             audience=EXPECTED_AUDIENCE,
         )
-    except Exception as exception:
+    except (PyJWTError, PyJWKClientError) as exception:
         logger.warning("JWT verification failed: %s", exception)
         raise HTTPException(status_code=401, detail="Invalid authentication token")

@@ -1,11 +1,13 @@
 package org.pdzsoftware.antifraudorchestrator.application.usecase;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.TopicPartition;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.pdzsoftware.antifraudorchestrator.application.usecase.dto.ProcessTransactionInput;
@@ -23,6 +25,7 @@ import org.springframework.kafka.support.SendResult;
 
 import java.util.concurrent.CompletableFuture;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
@@ -46,8 +49,14 @@ class ProcessTransactionUseCaseTest {
     @Mock
     private TransactionProducer transactionProducer;
 
-    @InjectMocks
+    private final MeterRegistry meterRegistry = new SimpleMeterRegistry();
     private ProcessTransactionUseCase processTransactionUseCase;
+
+    @BeforeEach
+    void setUp() {
+        processTransactionUseCase = new ProcessTransactionUseCase(
+                featureManagerClient, inferenceEngineClient, transactionProducer, meterRegistry);
+    }
 
     @Test
     void execute_shouldOrchestrateFeatureScoringPersistenceAndPublish() {
@@ -68,6 +77,10 @@ class ProcessTransactionUseCaseTest {
         inOrder.verify(inferenceEngineClient).scoreTransaction(features);
         inOrder.verify(featureManagerClient).persistTransaction(any(PersistTransactionRequest.class));
         inOrder.verify(transactionProducer).publish(any(TransactionScoredMessage.class));
+
+        assertThat(meterRegistry.find("transactions_processed").counter()).isNotNull();
+        assertThat(meterRegistry.find("transactions_processed").counter().count()).isEqualTo(1.0);
+        assertThat(meterRegistry.find("transaction_orchestration_duration_seconds").timer()).isNotNull();
     }
 
     @Test

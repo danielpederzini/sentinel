@@ -3,8 +3,7 @@ package org.pdzsoftware.riskactionhandler.infrastructure.outbound.client;
 import lombok.extern.slf4j.Slf4j;
 import org.pdzsoftware.riskactionhandler.domain.exception.LlmClientException;
 import org.pdzsoftware.riskactionhandler.infrastructure.config.properties.LlmRestClientProperties;
-import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.ExplainabilityDetailsMessage;
-import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.FeatureContributionMessage;
+
 import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.FraudFeaturesMessage;
 import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.FraudPredictionMessage;
 import org.pdzsoftware.riskactionhandler.infrastructure.inbound.consumer.dto.TransactionScoredMessage;
@@ -18,10 +17,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
-import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -104,7 +100,9 @@ public class LlmClient {
 					.retrieve()
 					.body(ChatCompletionResponse.class);
 
-            Objects.requireNonNull(response, "LLM returned an empty response body");
+            if (response == null) {
+				throw new LlmClientException("LLM returned an empty response body");
+			}
 
             if (response.choices() == null || response.choices().isEmpty()) {
 				throw new LlmClientException("LLM returned no choices");
@@ -115,7 +113,7 @@ public class LlmClient {
 				throw new LlmClientException("LLM returned an empty completion");
 			}
 			return llmMessage.content();
-		} catch (RestClientException | NullPointerException exception) {
+		} catch (RestClientException exception) {
 			log.error("LLM explanation request failed for transaction {}", transactionScoredMessage.transactionId(), exception);
 			throw new LlmClientException(String.format("Failed to get LLM explainability details for transaction %s",
 					transactionScoredMessage.transactionId()), exception);
@@ -126,11 +124,7 @@ public class LlmClient {
 		FraudPredictionMessage prediction = message.predictionMessage();
 		FraudFeaturesMessage features = message.featuresMessage();
 
-		List<FeatureContributionMessage> contributions = Optional.ofNullable(prediction.explainability())
-				.map(ExplainabilityDetailsMessage::topContributingFeatures)
-				.orElse(Collections.emptyList());
-
-		String topFeatures = contributions.stream()
+		String topFeatures = prediction.topContributingFeatures().stream()
 				.map(feature -> "  - %s = %s (SHAP contribution: %.4f, direction: %s)".formatted(
 						feature.featureName(), feature.featureValue(), feature.contribution(), feature.direction()))
 				.collect(Collectors.joining("\n"));

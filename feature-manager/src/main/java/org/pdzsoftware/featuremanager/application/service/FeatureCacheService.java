@@ -38,15 +38,15 @@ public class FeatureCacheService {
         try {
             long timestampInSeconds = normalizeToEpochSeconds(timestamp);
             String userTransactionKey = USER_TRANSACTIONS_KEY_PREFIX + userId;
-            redisTemplate.opsForZSet().add(userTransactionKey, buildTransactionMember(transactionId), timestampInSeconds);
+            redisTemplate.opsForZSet().add(userTransactionKey, buildMember(transactionId, String.valueOf(System.currentTimeMillis())), timestampInSeconds);
             redisTemplate.expire(userTransactionKey, redisProperties.getTimeToLast());
 
             String amountsKey = USER_TRANSACTION_AMOUNTS_KEY_PREFIX + userId;
-            redisTemplate.opsForZSet().add(amountsKey, buildAmountMember(transactionId, amount), timestampInSeconds);
+            redisTemplate.opsForZSet().add(amountsKey, buildMember(transactionId, amount.toPlainString()), timestampInSeconds);
             redisTemplate.expire(amountsKey, redisProperties.getTimeToLast());
 
             String merchantsKey = USER_TRANSACTION_MERCHANTS_KEY_PREFIX + userId;
-            redisTemplate.opsForZSet().add(merchantsKey, buildMerchantMember(transactionId, merchantId), timestampInSeconds);
+            redisTemplate.opsForZSet().add(merchantsKey, buildMember(transactionId, merchantId), timestampInSeconds);
             redisTemplate.expire(merchantsKey, redisProperties.getTimeToLast());
 
             String lastTransactionKey = USER_LAST_TRANSACTION_KEY_PREFIX + userId;
@@ -166,22 +166,9 @@ public class FeatureCacheService {
         }
     }
 
-    private String buildTransactionMember(String transactionId) {
-        boolean isTransactionIdMissing = StringUtils.isBlank(transactionId);
-        String memberPrefix = isTransactionIdMissing ? UUID.randomUUID().toString() : transactionId;
-        return String.format("%s:%s", memberPrefix, System.currentTimeMillis());
-    }
-
-    private String buildAmountMember(String transactionId, BigDecimal amount) {
-        boolean isTransactionIdMissing = StringUtils.isBlank(transactionId);
-        String memberPrefix = isTransactionIdMissing ? UUID.randomUUID().toString() : transactionId;
-        return String.format("%s:%s", memberPrefix, amount.toPlainString());
-    }
-
-    private String buildMerchantMember(String transactionId, String merchantId) {
-        boolean isTransactionIdMissing = StringUtils.isBlank(transactionId);
-        String memberPrefix = isTransactionIdMissing ? UUID.randomUUID().toString() : transactionId;
-        return String.format("%s:%s", memberPrefix, merchantId);
+    private String buildMember(String transactionId, String suffix) {
+        String memberPrefix = StringUtils.isBlank(transactionId) ? UUID.randomUUID().toString() : transactionId;
+        return String.format("%s:%s", memberPrefix, suffix);
     }
 
     private long normalizeToEpochSeconds(long timestamp) {
