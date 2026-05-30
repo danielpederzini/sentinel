@@ -11,8 +11,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
-import java.util.Objects;
-
 @Slf4j
 @Component
 public class InferenceEngineClient {
@@ -34,8 +32,11 @@ public class InferenceEngineClient {
 					.retrieve()
 					.body(FraudPredictionResponse.class);
 
-			return Objects.requireNonNull(response, "Inference Engine returned an empty response body");
-		} catch (RestClientException | NullPointerException exception) {
+			if (response == null) {
+				throw new InferenceEngineClientException("Inference Engine returned an empty response body");
+			}
+			return response;
+		} catch (RestClientException exception) {
 			log.error("Failed to score transaction {} with Inference Engine", features.transactionId(), exception);
 			throw new InferenceEngineClientException("Failed to score transaction with Inference Engine", exception);
 		}

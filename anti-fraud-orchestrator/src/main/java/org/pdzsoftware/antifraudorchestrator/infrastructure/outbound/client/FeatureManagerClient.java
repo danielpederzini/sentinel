@@ -12,8 +12,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
-import java.util.Objects;
-
 @Slf4j
 @Component
 public class FeatureManagerClient {
@@ -36,8 +34,11 @@ public class FeatureManagerClient {
 					.retrieve()
 					.body(FraudFeatureResponse.class);
 
-			return Objects.requireNonNull(response, "Feature Manager returned an empty response body");
-		} catch (RestClientException | NullPointerException exception) {
+			if (response == null) {
+				throw new FeatureManagerClientException("Feature Manager returned an empty response body");
+			}
+			return response;
+		} catch (RestClientException exception) {
 			log.error("Failed to fetch fraud features for transaction {}", message.transactionId(), exception);
 			throw new FeatureManagerClientException("Failed to fetch fraud features from Feature Manager", exception);
 		}

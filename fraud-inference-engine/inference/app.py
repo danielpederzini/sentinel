@@ -101,10 +101,14 @@ def _load_latest_model(
         raise ModelLoadException(f"Model loading failed: {str(exception)}")
 
 
+# A transaction is MEDIUM risk once its probability reaches this fraction of the HIGH threshold.
+_MEDIUM_RISK_THRESHOLD_RATIO = 0.5
+
+
 def _find_risk_level(probability: float, threshold: float) -> RiskLevel:
     if probability >= threshold:
         return RiskLevel.HIGH
-    if probability >= threshold * 0.5:
+    if probability >= threshold * _MEDIUM_RISK_THRESHOLD_RATIO:
         return RiskLevel.MEDIUM
     return RiskLevel.LOW
 
@@ -316,7 +320,7 @@ async def lifespan(app: FastAPI):
     except ModelLoadException as exception:
         _error_logger.error("Model loading failed during startup", exception)
         raise
-    consumer_thread = _start_kafka_consumer()
+    _start_kafka_consumer()
     yield
     _state.clear()
 

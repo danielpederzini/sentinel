@@ -9,6 +9,7 @@ import org.pdzsoftware.featuremanager.application.service.TrustedDeviceService;
 import org.pdzsoftware.featuremanager.application.service.UserService;
 import org.pdzsoftware.featuremanager.domain.exception.CardNotFoundException;
 import org.pdzsoftware.featuremanager.domain.exception.MerchantNotFoundException;
+import org.pdzsoftware.featuremanager.domain.exception.TrustedDeviceNotFoundException;
 import org.pdzsoftware.featuremanager.domain.exception.UserNotFoundException;
 import org.pdzsoftware.featuremanager.infrastructure.inbound.controller.dto.FeaturesRequest;
 import org.pdzsoftware.featuremanager.infrastructure.inbound.controller.dto.PersistTransactionRequest;
@@ -84,7 +85,7 @@ public class PersistTransactionUseCase {
         }
 
         if (StringUtils.hasText(input.deviceId()) && !trustedDeviceService.existsById(input.deviceId())) {
-            throw new RuntimeException(String.format(
+            throw new TrustedDeviceNotFoundException(String.format(
                     "Device with id %s not found", input.deviceId()));
         }
     }

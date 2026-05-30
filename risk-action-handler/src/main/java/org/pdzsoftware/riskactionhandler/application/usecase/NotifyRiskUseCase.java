@@ -19,6 +19,8 @@ import java.time.Instant;
 @Component
 @RequiredArgsConstructor
 public class NotifyRiskUseCase {
+    private static final String EMAIL_SUBJECT_PREFIX = "Fraud Alert — Transaction ";
+
     private final LlmClient llmClient;
     private final EmailClient emailClient;
     private final NotificationTaskRepository notificationTaskRepository;
@@ -54,7 +56,7 @@ public class NotifyRiskUseCase {
 
     private void processEmailStep(NotificationTask task) {
         String transactionId = task.getTransactionId();
-        String subject = "Fraud Alert — Transaction " + transactionId;
+        String subject = EMAIL_SUBJECT_PREFIX + transactionId;
 
         emailClient.sendEmail(transactionId, subject, task.getEmailContent());
 

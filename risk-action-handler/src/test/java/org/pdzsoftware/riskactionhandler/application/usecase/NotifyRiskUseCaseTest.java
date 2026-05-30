@@ -1,8 +1,10 @@
 package org.pdzsoftware.riskactionhandler.application.usecase;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.pdzsoftware.riskactionhandler.domain.entity.NotificationTask;
@@ -42,8 +44,14 @@ class NotifyRiskUseCaseTest {
     @Mock
     private NotificationSchedulerProperties schedulerProperties;
 
-    @InjectMocks
+    private final MeterRegistry meterRegistry = new SimpleMeterRegistry();
     private NotifyRiskUseCase notifyRiskUseCase;
+
+    @BeforeEach
+    void setUp() {
+        notifyRiskUseCase = new NotifyRiskUseCase(
+                llmClient, emailClient, notificationTaskRepository, schedulerProperties, meterRegistry);
+    }
 
     @Test
     void execute_shouldCompleteAllSteps_whenLlmAndEmailSucceed() {
@@ -56,6 +64,7 @@ class NotifyRiskUseCaseTest {
         assertThat(task.getLlmExplanation()).isEqualTo(LLM_EXPLANATION);
         assertThat(task.getCompletedAt()).isNotNull();
         verify(emailClient).sendEmail(eq(TRANSACTION_ID), eq(EMAIL_SUBJECT_PREFIX + TRANSACTION_ID), anyString());
+        assertThat(meterRegistry.find("risk_alerts_sent").counter().count()).isEqualTo(1.0);
     }
 
     @Test
@@ -115,6 +124,7 @@ class NotifyRiskUseCaseTest {
         assertThat(task.getStatus()).isEqualTo(NotificationTaskStatus.DEAD_LETTER);
         assertThat(task.getAttempts()).isEqualTo(5);
         verify(notificationTaskRepository).save(task);
+        assertThat(meterRegistry.find("notifications_dead_lettered").counter().count()).isEqualTo(1.0);
     }
 
     private NotificationTask pendingLlmTask() {

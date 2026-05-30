@@ -9,7 +9,6 @@ import numpy as np
 import optuna
 import pandas as pd
 from sklearn.isotonic import IsotonicRegression
-from sklearn.inspection import permutation_importance
 from sklearn.metrics import (
     average_precision_score,
     classification_report,
@@ -20,42 +19,19 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
 from data_loader import load_data
+from feature_schema import (
+    BASE_FEATURES,
+    CARD_TYPE_MAP,
+    CATEGORICAL_FEATURES,
+    MERCHANT_CATEGORY_MAP,
+)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Feature engineering
 # ──────────────────────────────────────────────────────────────────────────────
 
-BASE_FEATURES = [
-    "amount",
-    "user_average_amount",
-    "user_historical_transaction_count",
-    "user_transaction_count_5min",
-    "user_transaction_count_1hour",
-    "seconds_since_last_transaction",
-    "amount_velocity_1hour",
-    "merchant_risk_score",
-    "is_device_trusted",
-    "has_country_mismatch",
-    "amount_to_average_ratio",
-    "hour_of_day",
-    "ip_risk_score",
-    "card_age_days",
-    "user_account_age_days",
-    "day_of_week",
-    "merchant_category",
-    "card_type",
-    "distinct_merchant_count_1hour",
-]
-
-CATEGORICAL_FEATURES = ["merchant_category", "card_type"]
-
-_MERCHANT_CATEGORY_MAP = {
-    "GROCERY": 0, "RESTAURANT": 1, "ENTERTAINMENT": 2, "TRAVEL": 3,
-    "HEALTHCARE": 4, "EDUCATION": 5, "UTILITIES": 6, "OTHER": 7,
-}
-_CARD_TYPE_MAP = {
-    "CREDIT": 0, "DEBIT": 1, "CREDIT_AND_DEBIT": 2, "OTHER": 3,
-}
+_MERCHANT_CATEGORY_MAP = MERCHANT_CATEGORY_MAP
+_CARD_TYPE_MAP = CARD_TYPE_MAP
 
 
 def encode_categoricals(df: pd.DataFrame) -> pd.DataFrame:
