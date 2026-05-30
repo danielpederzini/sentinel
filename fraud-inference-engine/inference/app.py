@@ -4,6 +4,7 @@ import os
 import sys
 import logging
 import threading
+import time
 
 import joblib
 import lightgbm as lgb
@@ -21,6 +22,12 @@ from http import HTTPStatus
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from auth import verify_token
+from metrics import (
+    FRAUD_PROBABILITY,
+    FRAUD_SCORING_DURATION_SECONDS,
+    FRAUD_SCORING_TOTAL,
+    set_active_model,
+)
 from shared.schemas import (
     FraudPredictionRequest,
     FraudPredictionResponse,
@@ -232,6 +239,7 @@ def _apply_model_to_state(
         _state["feature_names"] = feature_names
         _state["feature_caps"] = feature_caps
         _state["explainer"] = explainer
+    set_active_model(version)
     caps_info = ", ".join(f"{k}={v:.2f}" for k, v in feature_caps.items()) if feature_caps else "none"
     logger.info("Loaded LightGBM model version %s with threshold %.4f, caps: %s", version, metrics['threshold'], caps_info)
 
@@ -405,6 +413,7 @@ async def handle_generic_exception(request: Request, exception: Exception):
     },
 )
 def score(request: FraudPredictionRequest, _: None = Depends(verify_token)) -> FraudPredictionResponse:
+    scoring_start = time.perf_counter()
     try:
         with _state_lock:
             if "model" not in _state:
@@ -444,6 +453,9 @@ def score(request: FraudPredictionRequest, _: None = Depends(verify_token)) -> F
                 request, feature_vector, model, feature_names, explainer,
             ),
         )
+        FRAUD_PROBABILITY.observe(fraud_probability)
+        FRAUD_SCORING_TOTAL.labels(risk_level=risk_level.value, model_version=version).inc()
+        FRAUD_SCORING_DURATION_SECONDS.observe(time.perf_counter() - scoring_start)
         logger.info(
             "Scored transaction %s | riskLevel: %s | fraudProbability: %.4f | modelVersion: %s",
             request.transaction_id, risk_level.value, fraud_probability, version,

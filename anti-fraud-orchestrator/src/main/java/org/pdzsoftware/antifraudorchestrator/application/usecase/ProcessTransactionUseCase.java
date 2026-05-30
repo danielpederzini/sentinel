@@ -1,5 +1,7 @@
 package org.pdzsoftware.antifraudorchestrator.application.usecase;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.pdzsoftware.antifraudorchestrator.infrastructure.outbound.client.FeatureManagerClient;
@@ -21,11 +23,13 @@ public class ProcessTransactionUseCase implements VoidUseCase<ProcessTransaction
 	private final FeatureManagerClient featureManagerClient;
 	private final InferenceEngineClient inferenceEngineClient;
 	private final TransactionProducer transactionProducer;
+	private final MeterRegistry meterRegistry;
 
 	@Override
 	public void execute(ProcessTransactionInput input) {
 		TransactionCreatedMessage payload = input.payload();
 		String messageKey = input.messageKey();
+		Timer.Sample sample = Timer.start(meterRegistry);
 		try {
 			FraudFeatureResponse features = featureManagerClient.calculateFraudFeatures(payload);
 			FraudPredictionResponse prediction = inferenceEngineClient.scoreTransaction(features);
@@ -34,6 +38,10 @@ public class ProcessTransactionUseCase implements VoidUseCase<ProcessTransaction
 			featureManagerClient.persistTransaction(persistRequest);
 
 			TransactionScoredMessage scoredMessage = TransactionScoredMessage.from(payload, features, prediction);
+
+			meterRegistry.counter("transactions_processed",
+					"risk_level", prediction.riskLevel().name(),
+					"model_version", prediction.modelVersion()).increment();
 
 			log.info("Processed transaction {} | riskLevel: {} | fraudProbability: {} | modelVersion: {}",
 					payload.transactionId(),
@@ -47,6 +55,11 @@ public class ProcessTransactionUseCase implements VoidUseCase<ProcessTransaction
 		} catch (RuntimeException exception) {
 			throw new TransactionOrchestrationException(String.format(
 					"Failed to orchestrate transaction %s with key %s", payload.transactionId(), messageKey), exception);
+		} finally {
+			sample.stop(Timer.builder("transaction_orchestration_duration_seconds")
+					.description("End-to-end orchestration time per transaction")
+					.publishPercentileHistogram()
+					.register(meterRegistry));
 		}
 	}
 

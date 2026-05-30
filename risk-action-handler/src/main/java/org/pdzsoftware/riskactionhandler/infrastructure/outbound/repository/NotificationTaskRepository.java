@@ -17,4 +17,6 @@ public interface NotificationTaskRepository extends MongoRepository<Notification
             List<NotificationTaskStatus> statuses,
             Instant now
     );
+
+    long countByStatus(NotificationTaskStatus status);
 }

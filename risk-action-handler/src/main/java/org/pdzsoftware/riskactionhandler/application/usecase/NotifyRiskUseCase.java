@@ -1,5 +1,6 @@
 package org.pdzsoftware.riskactionhandler.application.usecase;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.pdzsoftware.riskactionhandler.application.util.EmailContentBuilder;
@@ -22,6 +23,7 @@ public class NotifyRiskUseCase {
     private final EmailClient emailClient;
     private final NotificationTaskRepository notificationTaskRepository;
     private final NotificationSchedulerProperties schedulerProperties;
+    private final MeterRegistry meterRegistry;
 
     public void execute(NotificationTask task) {
         try {
@@ -61,6 +63,7 @@ public class NotifyRiskUseCase {
         task.setErrorMessage(null);
         notificationTaskRepository.save(task);
 
+        meterRegistry.counter("risk_alerts_sent").increment();
         log.info("Sent fraud alert notification for transaction {}", transactionId);
     }
 
@@ -72,6 +75,7 @@ public class NotifyRiskUseCase {
 
         if (attempts >= schedulerProperties.getMaxAttempts()) {
             task.setStatus(NotificationTaskStatus.DEAD_LETTER);
+            meterRegistry.counter("notifications_dead_lettered").increment();
             log.error("Notification task for transaction {} moved to DEAD_LETTER after {} attempts: {}",
                     task.getTransactionId(), attempts, exception.getMessage());
         } else {
